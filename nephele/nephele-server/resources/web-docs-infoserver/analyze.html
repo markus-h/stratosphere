@@ -1,254 +1,272 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html>
+   <head>
+      <title>Stratosphere JobManager</title>
+      <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+      <link rel="stylesheet" type="text/css" href="css/nephelefrontend.css">
+      <link rel="stylesheet" type="text/css" href="css/timeline.css">
+      <script type="text/javascript" src="js/jquery.js"></script>
+      <script type="text/javascript" src="js/jcanvas.min.js"></script>
+      <script type="text/javascript" src="js/jquery.flot.min.js"></script>
+      <script type="text/javascript" src="js/jquery.flot.categories.min.js"></script>
+      <script type="text/javascript" src="js/jquery.flot.time.min.js"></script>
+      <script type="text/javascript" src="js/jquery.flot.stack.js"></script>
+      <script type="text/javascript" src="http://www.google.com/jsapi"></script>
+      <script type="text/javascript" src="js/timeline.js"></script>
+      <script type="text/javascript" src="js/helpers.js"></script>
+      <script type="text/javascript">
+         var jsonGlobal;
+         var widthProgressbar = 120;
+         
+         google.load("visualization", "1");
+         
+         
+         google.setOnLoadCallback(pollArchive);
+         
+         HTTP_GET_VARS=new Array();
+         strGET=document.location.search.substr(1,document.location.search.length);
+         if(strGET!='')
+           {
+           gArr=strGET.split('&');
+           for(i=0;i<gArr.length;++i)
+               {
+               v='';vArr=gArr[i].split('=');
+               if(vArr.length>1){v=vArr[1];}
+               HTTP_GET_VARS[unescape(vArr[0])]=unescape(v);
+               }
+           }
+         
+         function GET(v)
+         {
+         if(!HTTP_GET_VARS[v]){return 'undefined';}
+         return HTTP_GET_VARS[v];
+         }
+         
+         
+         function pollArchive() {
+             $.ajax({
+                 url: "/jobsInfo?get=job&job="+GET("job"),
+                 type: "GET",
+                 success: function(json) {
+                 	jsonGlobal = json
+                 	// Fill Table	
+         		analyzeTime(json, false)
+                 },
+                 dataType: "json",
+                 //complete: setTimeout(function() {poll()}, 5000),
+                 //timeout: 2000
+             }); 
+         };
 
-<head>
-  <title>Stratosphere JobManager</title>
+	$("#stack").live("click", function() {
+		analyzeTime(jsonGlobal, true);
+	});
 
-  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-
-  <link rel="stylesheet" type="text/css" href="css/nephelefrontend.css">
-<link rel="stylesheet" type="text/css" href="css/timeline.css">
-
-  <script type="text/javascript" src="js/jquery.js"></script>
-  <script type="text/javascript" src="js/jcanvas.min.js"></script>
-  <script type="text/javascript" src="js/jquery.flot.min.js"></script>
-<script type="text/javascript" src="js/jquery.flot.categories.min.js"></script>
-<script type="text/javascript" src="js/jquery.flot.time.min.js"></script>
-<script type="text/javascript" src="js/jquery.flot.stack.js"></script>
-<script type="text/javascript" src="http://www.google.com/jsapi"></script>
-<script type="text/javascript" src="js/timeline.js"></script>
-
-  <script type="text/javascript">
-		var jsonGlobal;
-		var widthProgressbar = 120;
-
-		google.load("visualization", "1");
-
-
-		google.setOnLoadCallback(pollArchive);
-
-HTTP_GET_VARS=new Array();
-strGET=document.location.search.substr(1,document.location.search.length);
-if(strGET!='')
-    {
-    gArr=strGET.split('&');
-    for(i=0;i<gArr.length;++i)
-        {
-        v='';vArr=gArr[i].split('=');
-        if(vArr.length>1){v=vArr[1];}
-        HTTP_GET_VARS[unescape(vArr[0])]=unescape(v);
-        }
-    }
- 
-function GET(v)
-{
-if(!HTTP_GET_VARS[v]){return 'undefined';}
-return HTTP_GET_VARS[v];
-}
-
-
-		function pollArchive() {
-		    $.ajax({
-		        url: "/jobsInfo?get=job&job="+GET("job"),
-		        type: "GET",
-		        success: function(json) {
-		        	jsonGlobal = json
-		        	// Fill Table	
-				analyzeTime(json)
-		        },
-		        dataType: "json",
-		        //complete: setTimeout(function() {poll()}, 5000),
-		        //timeout: 2000
-		    }); 
-		};
-
-		function analyzeTime(json) {
-
-		$.each(json, function(i, job) {
-			$("#time").html(formattedTimeFromTimestamp(job.SCHEDULED));
-			$("#run").html(convertTime(job[job.status] - job.SCHEDULED));
-			$("#status").html(job.status);
-			$("#jobtitle").html(job.jobname)
-
-
-			var data = new google.visualization.DataTable();
-			data.addColumn('datetime', 'start');
-			data.addColumn('datetime', 'end');
-			data.addColumn('string', 'content');
-			//data.addColumn('string', 'group');
-			data.addColumn('string', 'className');
-			var flotdata = [];
-
-			data.addRows([[new Date(job.SCHEDULED), , "SCHEDULED",  "scheduled"],
-				//[new Date(job.RUNNING), new Date(job[job.status]), "running",  "running"],
-				[new Date(job[job.status]), , job.status,  "finished"]
-			]);
-
-			var i = job.groupvertices.length;
-			$.each(job.groupvertices, function(j, groupvertex) {
-				data.addRows([[new Date(job.groupverticetimes[groupvertex.groupvertexid].STARTED), new Date(job.groupverticetimes[groupvertex.groupvertexid].ENDED) ,groupvertex.groupvertexname,  "running"]
-			]);
-			i--;
-				//flotdata.push([(job.groupverticetimes[groupvertex.groupvertexid].ENDED-job.groupverticetimes[groupvertex.groupvertexid].STARTED), groupvertex.groupvertexname]);
-			});
-
-			// Instantiate our timeline object.
-				var timeline = new links.Timeline(document.getElementById('job_timeline'));
-
-				// Draw our timeline with the created data and options
-				timeline.draw(data, {});
-
-			/*$.plot("#task_runtime", [ flotdata ], {
-			series: {
-			bars: {
-			show: true,
-			barWidth: 0.6,
-			align: "center",
-			horizontal: true
+        $("#flow").live("click", function() {
+		analyzeTime(jsonGlobal, false);
+	});
+         
+         function analyzeTime(json, stacked) {
+         
+         $.each(json, function(i, job) {
+		$("#job_timeline").html("");
+         	$("#time").html(formattedTimeFromTimestamp(job.SCHEDULED));
+         	$("#run").html(convertTime(job[job.status] - job.SCHEDULED));
+         	$("#status").html(job.status);
+         	$("#jobtitle").html(job.jobname);
+         
+         	var data = new google.visualization.DataTable();
+         	data.addColumn('datetime', 'start');
+         	data.addColumn('datetime', 'end');
+         	data.addColumn('string', 'content');
+		if(stacked)
+         		data.addColumn('string', 'group');
+         	data.addColumn('string', 'className');
+         	data.addColumn('string', 'groupvertexid');
+         	var flotdata = [];
+         
+		if(stacked)
+		data.addRows([[new Date(job.SCHEDULED), , "SCHEDULED", "9999" , "scheduled",  undefined],
+         		//[new Date(job.RUNNING), new Date(job[job.status]), "running",  "running"],
+         		[new Date(job[job.status]),  ,job.status, "9999", "finished",  undefined]
+         	]);
+		else
+         	data.addRows([[new Date(job.SCHEDULED), , "SCHEDULED", "scheduled",  undefined],
+         		//[new Date(job.RUNNING), new Date(job[job.status]), "running",  "running"],
+         		[new Date(job[job.status]), , job.status, "finished",  undefined]
+         	]);
+         
+         	var i = job.groupvertices.length;
+         	$.each(job.groupvertices, function(j, groupvertex) {
+		// check for reasonable starting time
+		if(job.groupverticetimes[groupvertex.groupvertexid].STARTED < 8888888888888) {
+			if(stacked) {
+				data.addRows([[new Date(job.groupverticetimes[groupvertex.groupvertexid].STARTED), new Date(job.groupverticetimes[groupvertex.groupvertexid].ENDED) ,  groupvertex.groupvertexname, ""+i, "running",  groupvertex.groupvertexid]
+		 	]);
 			}
-			},
-			yaxis: {
-			mode: "categories"
-			}
-			});*/
-
-
-
-				$.each(job.groupvertices, function(j, groupvertex) {
-
-					$("#vertices").append('<h2>'+groupvertex.groupvertexname+'</h2><br /><div id="pl_'+groupvertex.groupvertexid+'"></div>');
-					var data = new google.visualization.DataTable();
-					data.addColumn('datetime', 'start');
-					data.addColumn('datetime', 'end');
-					data.addColumn('string', 'content');
-					data.addColumn('string', 'group');
-					data.addColumn('string', 'className');		
-
-					$.each(groupvertex.groupmembers, function(k, vertex) {
-
-						data.addRows([
-					[new Date(job.verticetimes[vertex.vertexid].READY), new Date(job.verticetimes[vertex.vertexid].STARTING), vertex.vertexname+" ready", vertex.vertexinstancename, "ready"],
-					[new Date(job.verticetimes[vertex.vertexid].STARTING), new Date(job.verticetimes[vertex.vertexid].RUNNING), vertex.vertexname+" starting", vertex.vertexinstancename, "starting"],
-					[new Date(job.verticetimes[vertex.vertexid].RUNNING), new Date(job.verticetimes[vertex.vertexid].FINISHING), vertex.vertexname+" running", vertex.vertexinstancename, "running"],
-					[new Date(job.verticetimes[vertex.vertexid].FINISHING), new Date(job.verticetimes[vertex.vertexid].FINISHED), vertex.vertexname+" finishing", vertex.vertexinstancename, "finishing"]]);
-						//d1.push([job.verticetimes[vertex.vertexid].SCHEDULED, 1, job.verticetimes[vertex.vertexid].FINISHED, "RUNNING"]);
-						//data.push([vertex.vertexinstancename, job.verticetimes[vertex.vertexid].FINISHED]);	
-						//$("#vertices").append('<div id="placeholder_vertex.vertexid"></div>';
-		             		});
-
-				// Instantiate our timeline object.
-				var timeline = new links.Timeline(document.getElementById('pl_'+groupvertex.groupvertexid));
-
-				// Draw our timeline with the created data and options
-				timeline.draw(data, {});
-
-		             });
-
-
-		}); 
+			else
+		 		data.addRows([[new Date(job.groupverticetimes[groupvertex.groupvertexid].STARTED), new Date(job.groupverticetimes[groupvertex.groupvertexid].ENDED) ,groupvertex.groupvertexname,  "running",  groupvertex.groupvertexid]
+		 	]);
+         	i--;
+         	//flotdata.push([(job.groupverticetimes[groupvertex.groupvertexid].ENDED-job.groupverticetimes[groupvertex.groupvertexid].STARTED), groupvertex.groupvertexname]);
 		}
+         	});
+         
+         	// Instantiate our timeline object.
+         	var timeline = new links.Timeline(document.getElementById('job_timeline'));
+         
+         	var onselect = function (event) {
+         		var row = getSelectedRow(timeline);
+         		if (row != undefined) {
+			if(stacked)
+         			loadGroupvertex(data.getValue(row, 5));
+			else
+				loadGroupvertex(data.getValue(row, 4));
+         		// Note: you can retrieve the contents of the selected row with
+         		// data.getValue(row, 2);
+         		}
+         		else {
+         		//alert("fail");
+         		}
+         	};
+         
+         	// Add event listeners
+         	google.visualization.events.addListener(timeline, 'select', onselect);
+         
+         	// Draw our timeline with the created data and options
+         	timeline.draw(data, {});
+         
+         }); 
+         }
+         
+         function loadGroupvertex(groupvertexid) {
+             $.ajax({
+                 url: "/jobsInfo?get=groupvertex&job="+GET("job")+"&groupvertex="+groupvertexid,
+                 type: "GET",
+                 success: function(json) {
+                 	//jsonGlobal = json
+                 	// Fill Table	
+         		analyzeGroupvertexTime(json)
+                 },
+                 dataType: "json",
+                 //complete: setTimeout(function() {poll()}, 5000),
+                 //timeout: 2000
+             }); 
+         }
+         
+         
+         function analyzeGroupvertexTime(json) {
+		$("#vertices").html("");
+         	var groupvertex = json.groupvertex;
+         			$("#vertices").append('<h2>'+groupvertex.groupvertexname+'</h2><br /><div id="pl_'+groupvertex.groupvertexid+'"></div>');
+         			var data = new google.visualization.DataTable();
+         			data.addColumn('datetime', 'start');
+         			data.addColumn('datetime', 'end');
+         			data.addColumn('string', 'content');
+         			data.addColumn('string', 'group');
+         			data.addColumn('string', 'className');		
+         			var cnt = 0;
+         			$.each(groupvertex.groupmembers, function(k, vertex) {
+         
+         				data.addRows([
+         			[new Date(json.verticetimes[vertex.vertexid].READY), new Date(json.verticetimes[vertex.vertexid].STARTING), "ready", vertex.vertexinstancename+"_"+cnt, "ready"],
+         			[new Date(json.verticetimes[vertex.vertexid].STARTING), new Date(json.verticetimes[vertex.vertexid].RUNNING), "starting", vertex.vertexinstancename+"_"+cnt, "starting"]]);
 
+				if(vertex.vertexstatus == "FINISHED")
+         			data.addRows([[new Date(json.verticetimes[vertex.vertexid].RUNNING), new Date(json.verticetimes[vertex.vertexid].FINISHING), " running", vertex.vertexinstancename+"_"+cnt, "running"],
+         			[new Date(json.verticetimes[vertex.vertexid].FINISHING), new Date(json.verticetimes[vertex.vertexid].FINISHED), "finishing", vertex.vertexinstancename+"_"+cnt, "finishing"]]);
 
-function formattedTimeFromTimestamp(timestamp)
-{
-    var date = new Date(timestamp);
-    return date.toLocaleString();
-}
+				if(vertex.vertexstatus == "CANCELED")
+         			data.addRows([[new Date(json.verticetimes[vertex.vertexid].RUNNING), new Date(json.verticetimes[vertex.vertexid].CANCELING), "running", vertex.vertexinstancename+"_"+cnt, "running"],
+         			[new Date(json.verticetimes[vertex.vertexid].CANCELING), new Date(json.verticetimes[vertex.vertexid].CANCELED), "canceling", vertex.vertexinstancename+"_"+cnt, "canceling"]]);
 
-function convertTime(time) {        
-    var millis= time % 1000;
-    time = parseInt(time/1000);
-    var seconds = time % 60;
-    time = parseInt(time/60);
-    var minutes = time % 60;
-    time = parseInt(time/60);
-    var hours = time % 24;
-    var out = "";
-    if(hours && hours > 0) out += hours + " " + ((hours == 1)?"hr":"hrs") + " ";
-    if(minutes && minutes > 0) out += minutes + " " + ((minutes == 1)?"min":"mins") + " ";
-    if(seconds && seconds > 0) out += seconds + " " + ((seconds == 1)?"sec":"secs") + " ";
-    if(millis&& millis> 0) out += millis+ " " + ((millis== 1)?"msec":"msecs") + " ";
-    return out.trim();
-}
+				if(vertex.vertexstatus == "FAILED")
+         			data.addRows([[new Date(json.verticetimes[vertex.vertexid].RUNNING), new Date(json.verticetimes[vertex.vertexid].FAILED), "running - FAILED", vertex.vertexinstancename+"_"+cnt, "failed"]]);
 
-
-  </script>
-</head>
-
-
-
-<body>
-
-<div id="page-sidebar">
-                <div id="header-logo">
-                    <img width="250" alt="Stratosphere Logo" src="img/StratosphereLogo.png">
-                </div>
-
-                <div class="scrollable-content active" id="sidebar-menu" style="overflow: hidden; height: 130px;" tabindex="5000">
-                    <ul style="">
-                        <li>
-                            <a title="Dashboard" href="index.html">
-                                Job Manager
-                            </a>
-                        </li>
-                        <li>
-                            <a title="Components"target="_blank"  href="/logInfo">
-                                Log
-                            </a>
-                        </li>
-			<li>
-                            <a title="Components"target="_blank"  href="/logInfo?get=stdout">
-                                Stdout
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-</div>
-
-<div id="page-main">
-<div id="page-main-wrapper">
-<div id="page-content">
-
-    <!--<div class="mainHeading" style="min-width: 950x;">
-      <h1><img src="img/StratosphereLogo.png" width="326" height="100" alt="Stratosphere Logo" />Stratosphere JobManager</h1>
-    </div>-->
-
-    <!-- the main panel with the jobs list and the preview pane -->
-
-
-    <div class="contentbox">
-<h3 class="contentbox-header">
-<span id="jobtitle">Job Overview</span>
-</h3>
-<div id="jobs" class="contentbox-wrapper">
-
-      <div id="started">
-	Scheduled: <span id="time"></span>
+         				//d1.push([json.verticetimes[vertex.vertexid].SCHEDULED, 1, json.verticetimes[vertex.vertexid].FINISHED, "RUNNING"]);
+         				//data.push([vertex.vertexinstancename, json.verticetimes[vertex.vertexid].FINISHED]);	
+         				//$("#vertices").append('<div id="placeholder_vertex.vertexid"></div>';
+					cnt++;
+                      		});
+         
+         		// Instantiate our timeline object.
+         		var timeline = new links.Timeline(document.getElementById('pl_'+groupvertex.groupvertexid));
+         
+         		// Draw our timeline with the created data and options
+         		timeline.draw(data, {});
+         
+         }
+         
+         function getSelectedRow(timeline) {
+         var row = undefined;
+         var sel = timeline.getSelection();
+         if (sel.length) {
+         if (sel[0].row != undefined) {
+         row = sel[0].row;
+         }
+         }
+         return row;
+         }
+         
+         
+      </script>
+   </head>
+   <body>
+      <div id="page-sidebar">
+         <div id="header-logo">
+            <img width="230" alt="Stratosphere Logo" src="img/StratosphereLogo.png">
+         </div>
+         <div class="scrollable-content active" id="sidebar-menu" style="overflow: hidden; height: 130px;" tabindex="5000">
+            <ul style="">
+               <li>
+                  <a title="Dashboard" href="index.html">
+                  Job Manager
+                  </a>
+               </li>
+               <li>
+                  <a title="Components"target="_blank"  href="/logInfo">
+                  Log
+                  </a>
+               </li>
+               <li>
+                  <a title="Components"target="_blank"  href="/logInfo?get=stdout">
+                  Stdout
+                  </a>
+               </li>
+            </ul>
+         </div>
       </div>
-      <div id="runtime">
-	Runtime: <span id="run"></span>
+      <div id="page-main">
+      <div id="page-main-wrapper">
+      <div id="page-content">
+      <div class="contentbox">
+         <h3 class="contentbox-header">
+            <span id="jobtitle">Job Overview</span>
+         </h3>
+         <div id="jobs" class="contentbox-wrapper">
+            <div id="started">
+               Scheduled: <span id="time"></span>
+            </div>
+            <div id="runtime">
+               Runtime: <span id="run"></span>
+            </div>
+            <div id="endstatus">
+               Status: <span id="status"></span>
+            </div>
+            <div id="control">
+               <span id="flow" class="btn">Flow Layout</span><span id="stack" class="btn">Stack Layout</span>
+            </div>
+            <div id="job_timeline">
+            </div>
+         </div>
       </div>
-      <div id="endstatus">
-	Status: <span id="status"></span>
+      <div class="contentbox">
+         <h3 class="contentbox-header">
+            <span>Tasks</span>
+         </h3>
+         <div id="vertices" class="contentbox-wrapper">
+         </div>
       </div>
-
-<div id="job_timeline">
-      </div>
-
-</div></div>
-
-
-    <div class="contentbox">
-<h3 class="contentbox-header">
-<span>Tasks</span>
-</h3>
-<div id="vertices" class="contentbox-wrapper">
-
-</div></div>
-
-
-</body>
-
-
+   </body>
 </html>

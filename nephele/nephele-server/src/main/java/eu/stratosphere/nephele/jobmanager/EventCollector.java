@@ -339,8 +339,6 @@ public final class EventCollector extends TimerTask implements ProfilingListener
 
 		this.timer = new Timer();
 		this.timer.schedule(this, this.timerTaskInterval, this.timerTaskInterval);
-		
-		this.registerArchivist(new MemoryArchivist());
 	}
 
 	/**

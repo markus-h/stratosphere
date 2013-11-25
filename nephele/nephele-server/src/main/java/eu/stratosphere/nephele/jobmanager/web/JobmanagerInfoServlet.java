@@ -10,7 +10,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -23,6 +22,7 @@ import eu.stratosphere.nephele.jobgraph.JobStatus;
 import eu.stratosphere.nephele.jobmanager.JobManager;
 import eu.stratosphere.nephele.managementgraph.ManagementGraph;
 import eu.stratosphere.nephele.managementgraph.ManagementGroupVertex;
+import eu.stratosphere.nephele.managementgraph.ManagementGroupVertexID;
 import eu.stratosphere.nephele.managementgraph.ManagementVertex;
 import eu.stratosphere.nephele.util.StringUtils;
 
@@ -57,6 +57,11 @@ public class JobmanagerInfoServlet extends HttpServlet {
 				else if("job".equals(req.getParameter("get"))) {
 					String jobId = req.getParameter("job");
 					writeJsonForArchivedJob(resp.getWriter(), jobmanager.getArchive().getJob(JobID.fromHexString(jobId)));
+				}
+				else if("groupvertex".equals(req.getParameter("get"))) {
+					String jobId = req.getParameter("job");
+					String groupvertexId = req.getParameter("groupvertex");
+					writeJsonForArchivedJobGroupvertex(resp.getWriter(), jobmanager.getArchive().getJob(JobID.fromHexString(jobId)), ManagementGroupVertexID.fromHexString(groupvertexId));
 				}
 				else if("taskmanagers".equals(req.getParameter("get"))) {
 					resp.getWriter().write("{\"taskmanagers\": " + jobmanager.getNumberOfTaskTrackers() +"}");
@@ -126,6 +131,12 @@ public class JobmanagerInfoServlet extends HttpServlet {
 		
 	}
 	
+	/**
+	 * Writes Json with a list of currently archived jobs, sorted by time
+	 * 
+	 * @param wrt
+	 * @param jobs
+	 */
 	private void writeJsonForArchive(PrintWriter wrt, List<RecentJobEvent> jobs) {
 		
 		wrt.write("[");
@@ -134,7 +145,7 @@ public class JobmanagerInfoServlet extends HttpServlet {
 		Collections.sort(jobs,  new Comparator<RecentJobEvent>() {
 			@Override
 			public int compare(RecentJobEvent o1, RecentJobEvent o2) {
-				if(o1.getTimestamp() > o2.getTimestamp())
+				if(o1.getTimestamp() < o2.getTimestamp())
 					return 1;
 				else
 					return -1;
@@ -164,12 +175,16 @@ public class JobmanagerInfoServlet extends HttpServlet {
 		
 	}
 	
+	/**
+	 * Writes infos about archived job in Json format, including groupvertices and groupverticetimes
+	 * 
+	 * @param wrt
+	 * @param jobEvent
+	 */
 	private void writeJsonForArchivedJob(PrintWriter wrt, RecentJobEvent jobEvent) {
 		
 		try {
 		
-			
-			
 			wrt.write("[");
 		
 			ManagementGraph jobManagementGraph = jobmanager.getManagementGraph(jobEvent.getJobID());
@@ -179,12 +194,12 @@ public class JobmanagerInfoServlet extends HttpServlet {
 			wrt.write("\"jobid\": \"" + jobEvent.getJobID() + "\",");
 			wrt.write("\"jobname\": \"" + jobEvent.getJobName()+"\",");
 			wrt.write("\"status\": \""+ jobEvent.getJobStatus() + "\",");
-			wrt.write("\"SCHEDULED\": "+ jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.SCHEDULED) + ",");
-			wrt.write("\"RUNNING\": "+ jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.RUNNING) + ",");
-			wrt.write("\"FINISHED\": "+ jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.FINISHED) + ",");
-			wrt.write("\"FAILED\": "+ jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.FAILED) + ",");
-			wrt.write("\"CANCELED\": "+ jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.CANCELED) + ",");
-			wrt.write("\"CREATED\": " + jobmanager.getArchive().getTime(jobEvent.getJobID(), JobStatus.CREATED)+",");
+			wrt.write("\"SCHEDULED\": "+ jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.SCHEDULED) + ",");
+			wrt.write("\"RUNNING\": "+ jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.RUNNING) + ",");
+			wrt.write("\"FINISHED\": "+ jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.FINISHED) + ",");
+			wrt.write("\"FAILED\": "+ jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.FAILED) + ",");
+			wrt.write("\"CANCELED\": "+ jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.CANCELED) + ",");
+			wrt.write("\"CREATED\": " + jobmanager.getArchive().getJobTime(jobEvent.getJobID(), JobStatus.CREATED)+",");
 			
 			// Serialize ManagementGraph to json
 			wrt.write("\"groupvertices\": [");
@@ -201,38 +216,6 @@ public class JobmanagerInfoServlet extends HttpServlet {
 			}
 			wrt.write("],");
 			
-			wrt.write("\"verticetimes\": {");
-			first = true;
-			for(ManagementGroupVertex groupVertex : jobManagementGraph.getGroupVerticesInTopologicalOrder()) {
-				
-				for(int j = 0; j < groupVertex.getNumberOfGroupMembers(); j++) {
-					ManagementVertex vertex = groupVertex.getGroupMember(j);
-					
-					if(first) {
-						first = false;
-					} else {
-						wrt.write(","); }
-					
-					wrt.write("\""+vertex.getID()+"\": {");
-					wrt.write("\"vertexid\": \"" + vertex.getID() + "\",");
-					wrt.write("\"vertexname\": \"" + vertex + "\",");
-					wrt.write("\"CREATED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CREATED) + ",");
-					wrt.write("\"SCHEDULED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.SCHEDULED) + ",");
-					wrt.write("\"ASSIGNED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.ASSIGNED) + ",");
-					wrt.write("\"READY\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.READY) + ",");
-					wrt.write("\"STARTING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.STARTING) + ",");
-					wrt.write("\"RUNNING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.RUNNING) + ",");
-					wrt.write("\"FINISHING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FINISHING) + ",");
-					wrt.write("\"FINISHED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FINISHED) + ",");
-					wrt.write("\"CANCELING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CANCELING) + ",");
-					wrt.write("\"CANCELED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CANCELED) + ",");
-					wrt.write("\"FAILED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FAILED) + "");
-					wrt.write("}");
-				}
-				
-			}
-			wrt.write("},");
-			
 			
 			wrt.write("\"groupverticetimes\": {");
 			first = true;
@@ -243,9 +226,11 @@ public class JobmanagerInfoServlet extends HttpServlet {
 				} else {
 					wrt.write(","); }
 				
+				// Calculate start and end time for groupvertex
 				long started = Long.MAX_VALUE;
 				long ended = 0;
 				
+				// Take earliest running state and latest endstate of groupmembers
 				for(int j = 0; j < groupVertex.getNumberOfGroupMembers(); j++) {
 					ManagementVertex vertex = groupVertex.getGroupMember(j);
 					
@@ -292,6 +277,65 @@ public class JobmanagerInfoServlet extends HttpServlet {
 		} catch (IOException ioe) { // Connection closed by client	
 			LOG.info("Info server for jobmanager: Connection closed by client, IOException");
 		} 
+		
+	}
+	
+	/**
+	 * Writes infos about one particular archived groupvertex in a job, including all groupmembers, their times and status
+	 * 
+	 * @param wrt
+	 * @param jobEvent
+	 * @param groupvertexId
+	 */
+	private void writeJsonForArchivedJobGroupvertex(PrintWriter wrt, RecentJobEvent jobEvent, ManagementGroupVertexID groupvertexId) {
+		
+		
+		try {
+		
+		ManagementGraph jobManagementGraph = jobmanager.getManagementGraph(jobEvent.getJobID());
+		
+		ManagementGroupVertex groupvertex = jobManagementGraph.getGroupVertexByID(groupvertexId);
+		
+		// Serialize ManagementGraph to json
+		wrt.write("{\"groupvertex\": "+groupvertex.toJson()+",");
+		
+		wrt.write("\"verticetimes\": {");
+		boolean first = true;
+		for(ManagementGroupVertex groupVertex : jobManagementGraph.getGroupVerticesInTopologicalOrder()) {
+			
+			for(int j = 0; j < groupVertex.getNumberOfGroupMembers(); j++) {
+				ManagementVertex vertex = groupVertex.getGroupMember(j);
+				
+				if(first) {
+					first = false;
+				} else {
+					wrt.write(","); }
+				
+				wrt.write("\""+vertex.getID()+"\": {");
+				wrt.write("\"vertexid\": \"" + vertex.getID() + "\",");
+				wrt.write("\"vertexname\": \"" + vertex + "\",");
+				wrt.write("\"CREATED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CREATED) + ",");
+				wrt.write("\"SCHEDULED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.SCHEDULED) + ",");
+				wrt.write("\"ASSIGNED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.ASSIGNED) + ",");
+				wrt.write("\"READY\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.READY) + ",");
+				wrt.write("\"STARTING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.STARTING) + ",");
+				wrt.write("\"RUNNING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.RUNNING) + ",");
+				wrt.write("\"FINISHING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FINISHING) + ",");
+				wrt.write("\"FINISHED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FINISHED) + ",");
+				wrt.write("\"CANCELING\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CANCELING) + ",");
+				wrt.write("\"CANCELED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.CANCELED) + ",");
+				wrt.write("\"FAILED\": "+ jobmanager.getArchive().getVertexTime(jobEvent.getJobID(), vertex.getID(), ExecutionState.FAILED) + "");
+				wrt.write("}");
+			}
+			
+		}
+		wrt.write("}}");
+		
+	} catch (EofException eof) { // Connection closed by client
+		LOG.info("Info server for jobmanager: Connection closed by client, EofException");
+	} catch (IOException ioe) { // Connection closed by client	
+		LOG.info("Info server for jobmanager: Connection closed by client, IOException");
+	} 
 		
 	}
 }

@@ -213,8 +213,14 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		this.eventCollector = new EventCollector(this.recommendedClientPollingInterval);
 		
 		// Register simple job archive
-		this.archive = new MemoryArchivist();
-		this.eventCollector.registerArchivist(archive);
+		int archived_items = GlobalConfiguration.getInteger(
+				ConfigConstants.JOB_MANAGER_WEB_ARCHIVE_COUNT, ConfigConstants.DEFAULT_JOB_MANAGER_WEB_ARCHIVE_COUNT);
+		if(archived_items > 0) {
+			this.archive = new MemoryArchivist(archived_items);
+			this.eventCollector.registerArchivist(archive);
+		}
+		else
+			this.archive = null;
 
 		// Load the input split manager
 		this.inputSplitManager = new InputSplitManager();
@@ -877,6 +883,8 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	}
 
 	/**
+	 * Returns current ManagementGraph from eventCollector and, if not current, from archive
+	 * 
 	 * {@inheritDoc}
 	 */
 	@Override
@@ -884,9 +892,11 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 
 		ManagementGraph mg = this.eventCollector.getManagementGraph(jobID);
 		if (mg == null) {
-			mg = this.archive.getManagementGraph(jobID);
+			if(this.archive != null)
+				mg = this.archive.getManagementGraph(jobID);
+			
 			if (mg == null) {
-			throw new IOException("Cannot find job with ID " + jobID);
+				throw new IOException("Cannot find job with ID " + jobID);
 			}
 		}
 
