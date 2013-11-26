@@ -38,7 +38,7 @@ jobmanager.heap.mb: 256
 
 jobmanager.web.port: 8081
 
-jobmanager.web.archive: 3
+jobmanager.web.archive: 20
 
 #=======================================================================================================================
 #                                                   TASK MANAGER (WORKERs)
