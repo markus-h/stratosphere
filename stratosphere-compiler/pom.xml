@@ -30,6 +30,12 @@
 			<version>${project.version}</version>
 			<scope>compile</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.ju-n.maven.plugins</groupId>
+			<artifactId>soot-maven-plugin</artifactId>
+			<version>0.1.1</version>
+			<type>maven-plugin</type>
+		</dependency>
 	</dependencies>
 
 </project>

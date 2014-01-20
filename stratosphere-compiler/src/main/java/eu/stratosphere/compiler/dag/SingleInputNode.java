@@ -20,14 +20,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import eu.stratosphere.api.common.functions.Function;
 import eu.stratosphere.api.common.operators.CompilerHints;
 import eu.stratosphere.api.common.operators.Operator;
 import eu.stratosphere.api.common.operators.SingleInputOperator;
+import eu.stratosphere.api.common.operators.util.FieldList;
 import eu.stratosphere.api.common.operators.util.FieldSet;
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFields;
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFieldsExcept;
 import eu.stratosphere.compiler.CompilerException;
 import eu.stratosphere.compiler.PactCompiler;
+import eu.stratosphere.compiler.analysis.StaticAnalysis;
+import eu.stratosphere.compiler.analysis.StubAnnotation.ImplicitOperation.ImplicitOperationMode;
 import eu.stratosphere.compiler.costs.CostEstimator;
 import eu.stratosphere.compiler.dataproperties.GlobalProperties;
 import eu.stratosphere.compiler.dataproperties.InterestingProperties;
@@ -60,7 +64,19 @@ public abstract class SingleInputNode extends OptimizerNode {
 	private FieldSet constantSet; 			// set of fields that are left unchanged by the stub
 	private FieldSet notConstantSet;		// set of fields that are changed by the stub
 
-	// --------------------------------------------------------------------------------------------
+	// ------------- Stub Annotations
+	
+	protected FieldSet reads; // set of fields that are read by the stub
+	
+	protected FieldSet explProjections; // set of fields that are explicitly projected by the stub
+	
+	protected FieldSet explCopies; // set of fields that explicitly copied from input to output 
+	
+	protected ImplicitOperationMode implOpMode; // implicit operation of the stub
+	
+	protected FieldList keySet; // The set of key fields (order is relevant!)
+
+	// ------------------------------
 	
 	/**
 	 * Creates a new node with a single input for the optimizer plan.
@@ -72,6 +88,8 @@ public abstract class SingleInputNode extends OptimizerNode {
 		
 		int[] k = pactContract.getKeyColumns(0);
 		this.keys = k == null || k.length == 0 ? null : new FieldSet(k);
+		
+		this.extractSCAInformation((Class<? extends Function>) pactContract.getUserCodeClass());
 	}
 	
 	protected SingleInputNode(FieldSet keys) {
@@ -457,6 +475,30 @@ public abstract class SingleInputNode extends OptimizerNode {
 		if (this.notConstantSet != null && this.constantSet != null) {
 			throw new CompilerException("Either ConstantFields or ConstantFieldsExcept can be specified, not both.");
 		}
+	}
+	
+	protected void extractSCAInformation(Class<? extends Function> stub) {
+		StaticAnalysis sa = new StaticAnalysis(stub);
+		
+		reads = sa.getLeftReadSet();
+		implOpMode = sa.getLeftImplicitOperation();
+		switch(implOpMode) {
+		case Copy:
+			explProjections = sa.getLeftExplicitProjectionSet();
+			explCopies = null;
+			break;
+		case Projection:
+			explCopies = sa.getLeftExplicitCopySet();
+			explProjections = null;
+			break;
+		}
+		explWrites = sa.getWriteSet();
+		
+		stubOutCardLB = sa.getLowerBound();
+		stubOutCardUB = sa.getUpperBound();
+		
+		this.readUniqueFieldsAnnotation();
+		
 	}
 
 	// --------------------------------------------------------------------------------------------

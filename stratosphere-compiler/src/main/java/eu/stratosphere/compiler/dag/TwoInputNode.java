@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import eu.stratosphere.api.common.functions.Function;
 import eu.stratosphere.api.common.operators.CompilerHints;
 import eu.stratosphere.api.common.operators.DualInputOperator;
 import eu.stratosphere.api.common.operators.Operator;
@@ -31,6 +32,8 @@ import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFiel
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFieldsSecondExcept;
 import eu.stratosphere.compiler.CompilerException;
 import eu.stratosphere.compiler.PactCompiler;
+import eu.stratosphere.compiler.analysis.StaticAnalysis;
+import eu.stratosphere.compiler.analysis.StubAnnotation.ImplicitOperation.ImplicitOperationMode;
 import eu.stratosphere.compiler.costs.CostEstimator;
 import eu.stratosphere.compiler.dataproperties.GlobalProperties;
 import eu.stratosphere.compiler.dataproperties.InterestingProperties;
@@ -50,7 +53,6 @@ import eu.stratosphere.pact.runtime.task.DamBehavior;
 import eu.stratosphere.pact.runtime.task.DriverStrategy;
 import eu.stratosphere.pact.runtime.task.util.LocalStrategy;
 import eu.stratosphere.util.Visitor;
-
 import static eu.stratosphere.compiler.plan.PlanNode.SourceAndDamReport.*;
 
 /**
@@ -78,6 +80,23 @@ public abstract class TwoInputNode extends OptimizerNode {
 	protected FieldSet notConstant1; // set of fields that are changed by the stub
 	
 	protected FieldSet notConstant2; // set of fields that are changed by the stub
+
+	
+	protected FieldSet reads1; // set of fields that are read by the stub
+	
+	protected FieldSet explProjections1; // set of fields that are explicitly projected from the first input
+	
+	protected FieldSet explCopies1; // set of fields that are copied from the first input to output 
+	
+	protected ImplicitOperationMode implOpMode1; // implicit operation of the stub on the first input
+	
+	protected FieldSet reads2; // set of fields that are read by the stub
+	
+	protected FieldSet explProjections2; // set of fields that are explicitly projected from the second input
+	
+	protected FieldSet explCopies2; // set of fields that are copied from the second input to output 
+	
+	protected ImplicitOperationMode implOpMode2; // implicit operation of the stub on the second input
 	
 	// --------------------------------------------------------------------------------------------
 	
@@ -109,6 +128,8 @@ public abstract class TwoInputNode extends OptimizerNode {
 		}
 		
 		this.possibleProperties = getPossibleProperties();
+		
+		this.extractSCAInformation((Class<? extends Stub>)this.pactContract.getUserCodeClass());
 	}
 
 	// ------------------------------------------------------------------------
@@ -765,6 +786,42 @@ public abstract class TwoInputNode extends OptimizerNode {
 		default:
 			throw new IndexOutOfBoundsException();
 		}
+	}
+	
+	protected void extractSCAInformation(Class<? extends Function> stub) {
+		StaticAnalysis sa = new StaticAnalysis(stub);
+		
+		reads1 = sa.getLeftReadSet();
+		reads2 = sa.getRightReadSet();
+		implOpMode1 = sa.getLeftImplicitOperation();
+		switch(implOpMode1) {
+		case Copy:
+			explProjections1 = sa.getLeftExplicitProjectionSet();
+			explCopies1 = null;
+			break;
+		case Projection:
+			explCopies1 = sa.getLeftExplicitCopySet();
+			explProjections1 = null;
+			break;
+		}
+		implOpMode2 = sa.getRightImplicitOperation();
+		switch(implOpMode2) {
+		case Copy:
+			explProjections2 = sa.getRightExplicitProjectionSet();
+			explCopies2 = null;
+			break;
+		case Projection:
+			explCopies2 = sa.getRightExplicitCopySet();
+			explProjections2 = null;
+			break;
+		}
+		explWrites = sa.getWriteSet();
+		
+		super.stubOutCardLB = sa.getLowerBound();
+		super.stubOutCardUB = sa.getUpperBound();
+		
+		this.readUniqueFieldsAnnotation();
+		
 	}
 	
 	// --------------------------------------------------------------------------------------------

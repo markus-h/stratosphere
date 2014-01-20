@@ -75,6 +75,12 @@ public abstract class OptimizerNode implements Visitable<OptimizerNode>, Estimat
 	protected long estimatedOutputSize = -1; // the estimated size of the output (bytes)
 
 	protected long estimatedNumRecords = -1; // the estimated number of key/value pairs in the output
+	
+	protected int stubOutCardLB; // The lower bound of the stubs output cardinality
+	
+	protected int stubOutCardUB; // The upper bound of the stubs output cardinality
+	
+	protected FieldSet explWrites; // The set of explicitly written fields
 
 	// --------------------------------- General Parameters ---------------------------------------
 	
