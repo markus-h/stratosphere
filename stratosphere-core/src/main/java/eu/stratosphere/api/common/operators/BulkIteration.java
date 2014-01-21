@@ -35,6 +35,8 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 	
 	private int numberOfIterations = -1;
 	
+	protected Operator terminationCriterion;
+	
 	// --------------------------------------------------------------------------------------------
 	
 	/**
@@ -81,7 +83,7 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 	 * @return The contract representing the termination criterion.
 	 */
 	public Operator getTerminationCriterion() {
-		return null;
+		return this.terminationCriterion;
 	}
 	
 	/**

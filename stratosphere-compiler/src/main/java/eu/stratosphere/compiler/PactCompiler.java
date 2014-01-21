@@ -978,11 +978,17 @@ public class PactCompiler {
 					throw new CompilerException("Error: The step functions result does not depend on the partial solution.");
 				}
 				
+				OptimizerNode terminationCriterion = null;
+				if(iter.getTerminationCriterion() != null) {
+					iter.getTerminationCriterion().accept(recursiveCreator);
+					terminationCriterion = recursiveCreator.con2node.get(iter.getTerminationCriterion());
+				}
+				
 				// add an outgoing connection to the root of the step function
 				PactConnection rootConn = new PactConnection(rootOfStepFunction);
 				rootOfStepFunction.addOutgoingConnection(rootConn);
 				
-				iterNode.setNextPartialSolution(rootOfStepFunction, rootConn);
+				iterNode.setNextPartialSolution(rootOfStepFunction, terminationCriterion, rootConn);
 				iterNode.setPartialSolution(partialSolution);
 				
 				// account for the nested memory consumers

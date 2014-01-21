@@ -15,6 +15,10 @@ package eu.stratosphere.test.iterative;
 
 import java.util.Collection;
 
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -42,6 +46,15 @@ public class PageRankITCase extends TestBase2 {
 	
 	@Override
 	protected void preSubmit() throws Exception {
+		
+		Logger root = Logger.getRootLogger();
+		root.removeAllAppenders();
+		PatternLayout layout = new PatternLayout("%d{HH:mm:ss,SSS} %-5p %-60c %x - %m%n");
+		ConsoleAppender appender = new ConsoleAppender(layout, "System.err");
+		root.addAppender(appender);
+		root.setLevel(Level.DEBUG);
+		
+		
 		pagesPath = createTempFile("pages.txt", VERTICES);
 		edgesPath = createTempFile("edges.txt", EDGES);
 		resultPath = getTempFilePath("results");

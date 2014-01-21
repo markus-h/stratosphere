@@ -25,10 +25,12 @@ import eu.stratosphere.api.common.operators.FileDataSource;
 import eu.stratosphere.api.java.record.functions.JoinFunction;
 import eu.stratosphere.api.java.record.functions.ReduceFunction;
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFields;
+import eu.stratosphere.api.java.record.operators.BulkIterationOperator;
 import eu.stratosphere.api.java.record.operators.JoinOperator;
 import eu.stratosphere.api.java.record.operators.ReduceOperator;
 import eu.stratosphere.api.java.record.operators.ReduceOperator.Combinable;
 import eu.stratosphere.types.DoubleValue;
+import eu.stratosphere.types.IntValue;
 import eu.stratosphere.types.LongValue;
 import eu.stratosphere.types.Record;
 import eu.stratosphere.util.Collector;
@@ -60,7 +62,7 @@ public class SimplePageRank implements Program, ProgramDescription {
 
 			partialRank.setValue(rankToDistribute);
 			record.setField(1, partialRank);
-
+			
 			for (int n = 0; n < numNeighbors; n++) {
 				vertexID.setValue(adjacentNeighbors.getQuick(n));
 				record.setField(0, vertexID);
@@ -90,6 +92,33 @@ public class SimplePageRank implements Program, ProgramDescription {
 		}
 	}
 	
+	public static final class JoinOldAndNew extends JoinFunction implements Serializable {
+		private static final long serialVersionUID = 1L;
+
+		private Record record = new Record();
+		private LongValue vertexID = new LongValue();
+		private DoubleValue newRank = new DoubleValue();
+		private DoubleValue rank = new DoubleValue();
+		
+		@Override
+		public void join(Record pageWithRank, Record newPageWithRank, Collector<Record> out) throws Exception {
+			rank = pageWithRank.getField(1, rank);
+			newRank = newPageWithRank.getField(1, newRank);
+			vertexID = pageWithRank.getField(0, vertexID);
+			
+			double epsilon = 0.05;
+			double criterion = rank.getValue() - newRank.getValue();
+			
+			System.out.println("CRIT "+criterion);
+			
+			if(Math.abs(criterion) < epsilon)
+			{
+				record.setField(0, new IntValue(1));
+				out.collect(record);
+			}
+		}
+	}
+	
 	// --------------------------------------------------------------------------------------------
 	
 	public Plan getPlan(String ... args) {
@@ -113,7 +142,7 @@ public class SimplePageRank implements Program, ProgramDescription {
 			pageWithRankInputPath, "PageWithRank Input");
 		pageWithRankInput.getParameters().setLong(NUM_VERTICES_CONFIG_PARAM, numVertices);
 		
-		BulkIteration iteration = new BulkIteration("Page Rank Loop");
+		BulkIterationOperator iteration = new BulkIterationOperator("Page Rank Loop");
 		iteration.setInput(pageWithRankInput);
 		
 		FileDataSource adjacencyListInput = new FileDataSource(new ImprovedAdjacencyListInputFormat(),
@@ -132,6 +161,14 @@ public class SimplePageRank implements Program, ProgramDescription {
 		
 		iteration.setNextPartialSolution(rankAggregation);
 		iteration.setMaximumNumberOfIterations(numIterations);
+		
+		JoinOperator termination = JoinOperator.builder(new JoinVerexWithEdgesMatch(), LongValue.class, 0, 0)
+				.input1(iteration.getPartialSolution())
+				.input2(rankAggregation)
+				.name("Join Old and New")
+				.build();
+		
+		iteration.setTerminationCriterion(termination);
 		
 		FileDataSink out = new FileDataSink(new PageWithRankOutFormat(), outputPath, iteration, "Final Ranks");
 

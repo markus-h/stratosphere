@@ -22,6 +22,7 @@ import eu.stratosphere.compiler.CompilerException;
 import eu.stratosphere.compiler.DataStatistics;
 import eu.stratosphere.compiler.PactCompiler.InterestingPropertyVisitor;
 import eu.stratosphere.compiler.costs.CostEstimator;
+import eu.stratosphere.compiler.dag.WorksetIterationNode.SingleRootJoiner;
 import eu.stratosphere.compiler.dataproperties.GlobalProperties;
 import eu.stratosphere.compiler.dataproperties.InterestingProperties;
 import eu.stratosphere.compiler.dataproperties.LocalProperties;
@@ -47,6 +48,8 @@ public class BulkIterationNode extends SingleInputNode implements IterationNode 
 	private PactConnection rootConnection;
 	
 	private int costWeight;
+	
+	private SingleRootJoiner singleRoot;
 
 	// --------------------------------------------------------------------------------------------
 	
@@ -98,16 +101,20 @@ public class BulkIterationNode extends SingleInputNode implements IterationNode 
 	public OptimizerNode getNextPartialSolution() {
 		return nextPartialSolution;
 	}
-
 	
 	/**
 	 * Sets the nextPartialSolution for this BulkIterationNode.
 	 *
 	 * @param nextPartialSolution The nextPartialSolution to set.
 	 */
-	public void setNextPartialSolution(OptimizerNode nextPartialSolution, PactConnection rootingConnection) {
+	public void setNextPartialSolution(OptimizerNode nextPartialSolution, OptimizerNode terminationCriterion, PactConnection rootingConnection) {
 		this.nextPartialSolution = nextPartialSolution;
 		this.rootConnection = rootingConnection;
+		
+//		if(terminationCriterion != null) {
+//			this.singleRoot = new SingleRootJoiner();
+//			this.singleRoot.setInputs(new PactConnection(nextPartialSolution, this.singleRoot, -1), new PactConnection(terminationCriterion, this.singleRoot, -1));
+//		}
 	}
 	
 	public int getCostWeight() {
@@ -229,6 +236,12 @@ public class BulkIterationNode extends SingleInputNode implements IterationNode 
 	// --------------------------------------------------------------------------------------------
 
 	public void acceptForStepFunction(Visitor<OptimizerNode> visitor) {
-		this.nextPartialSolution.accept(visitor);
+		// If termination criterion is defined
+		if(this.singleRoot != null) {
+			this.singleRoot.accept(visitor);
+		}
+		else {
+			this.nextPartialSolution.accept(visitor);
+		}
 	}
 }
