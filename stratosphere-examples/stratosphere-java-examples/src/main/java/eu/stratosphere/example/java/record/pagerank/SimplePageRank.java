@@ -23,11 +23,15 @@ import eu.stratosphere.api.common.operators.BulkIteration;
 import eu.stratosphere.api.common.operators.FileDataSink;
 import eu.stratosphere.api.common.operators.FileDataSource;
 import eu.stratosphere.api.java.record.functions.JoinFunction;
+import eu.stratosphere.api.java.record.functions.MapFunction;
 import eu.stratosphere.api.java.record.functions.ReduceFunction;
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFields;
 import eu.stratosphere.api.java.record.operators.BulkIterationOperator;
 import eu.stratosphere.api.java.record.operators.JoinOperator;
+import eu.stratosphere.api.java.record.operators.MapOperator;
 import eu.stratosphere.api.java.record.operators.ReduceOperator;
+import eu.stratosphere.api.java.record.operators.BulkIterationOperator.TerminationCriterionAggregator;
+import eu.stratosphere.api.java.record.operators.BulkIterationOperator.TerminationCriterionMapper;
 import eu.stratosphere.api.java.record.operators.ReduceOperator.Combinable;
 import eu.stratosphere.types.DoubleValue;
 import eu.stratosphere.types.IntValue;
@@ -82,11 +86,15 @@ public class SimplePageRank implements Program, ProgramDescription {
 		public void reduce(Iterator<Record> pageWithPartialRank, Collector<Record> out) throws Exception {
 			Record rec = null;
 			double rankSum = 0.0;
+			
+			System.out.println("REDUCE");
+			
 			while (pageWithPartialRank.hasNext()) {
 				rec = pageWithPartialRank.next();
 				rankSum += rec.getField(1, DoubleValue.class).getValue();
 			}
 			sum.setValue(rankSum);
+			
 			rec.setField(1, sum);
 			out.collect(rec);
 		}
@@ -106,6 +114,8 @@ public class SimplePageRank implements Program, ProgramDescription {
 			newRank = newPageWithRank.getField(1, newRank);
 			vertexID = pageWithRank.getField(0, vertexID);
 			
+			System.out.println("JOINOLDANDNEW");
+			
 			double epsilon = 0.05;
 			double criterion = rank.getValue() - newRank.getValue();
 			
@@ -116,6 +126,17 @@ public class SimplePageRank implements Program, ProgramDescription {
 				record.setField(0, new IntValue(1));
 				out.collect(record);
 			}
+		}
+	}
+	
+	public static class TestMapper extends MapFunction implements Serializable {
+		private static final long serialVersionUID = 1L;
+		
+		@Override
+		public void map(Record record, Collector<Record> collector) {
+			
+			System.out.println("TESTMAPPER");
+			collector.collect(record);
 		}
 	}
 	
@@ -162,13 +183,18 @@ public class SimplePageRank implements Program, ProgramDescription {
 		iteration.setNextPartialSolution(rankAggregation);
 		iteration.setMaximumNumberOfIterations(numIterations);
 		
-		JoinOperator termination = JoinOperator.builder(new JoinVerexWithEdgesMatch(), LongValue.class, 0, 0)
+		JoinOperator termination = JoinOperator.builder(new JoinOldAndNew(), LongValue.class, 0, 0)
 				.input1(iteration.getPartialSolution())
 				.input2(rankAggregation)
 				.name("Join Old and New")
 				.build();
 		
-		iteration.setTerminationCriterion(termination);
+		MapOperator mapper = MapOperator.builder(new TestMapper())
+				.input(iteration.getPartialSolution())
+				.name("Termination Criterion Aggregation Wrapper")
+				.build();
+		
+		iteration.setTerminationCriterion(mapper);
 		
 		FileDataSink out = new FileDataSink(new PageWithRankOutFormat(), outputPath, iteration, "Final Ranks");
 

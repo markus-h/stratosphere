@@ -1184,6 +1184,47 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			throw new CompilerException("Bug: Cannot connect iteration tail vertex fake tail task");
 		}
 		
+		
+		// create the fake output task for termination criterion, if needed
+		final PlanNode rootOfTerminationCriterion = bulkNode.getRootOfTerminationCriterion();
+		final TaskConfig tailConfigOfTerminationCriterion;
+		if(rootOfTerminationCriterion != null) {
+			JobTaskVertex rootOfTerminationCriterionVertex = (JobTaskVertex) this.vertices.get(rootOfTerminationCriterion);
+			
+			
+			if (rootOfTerminationCriterionVertex == null) {
+				// last op is chained
+				final TaskInChain taskInChain = this.chainedTasks.get(rootOfTerminationCriterion);
+				if (taskInChain == null) {
+					throw new CompilerException("Bug: Tail of termination criterion not found as vertex or chained task.");
+				}
+				rootOfTerminationCriterionVertex = (JobTaskVertex) taskInChain.getContainingVertex();
+
+				// the fake channel is statically typed to pact record. no data is sent over this channel anyways.
+				tailConfigOfTerminationCriterion = taskInChain.getTaskConfig();
+			} else {
+				tailConfigOfTerminationCriterion = new TaskConfig(rootOfStepFunctionVertex.getConfiguration());
+			}
+			rootOfTerminationCriterionVertex.setTaskClass(IterationTailPactTask.class);
+			tailConfigOfTerminationCriterion.setIsWorksetUpdate();
+			tailConfigOfTerminationCriterion.setOutputSerializer(bulkNode.getSerializerForIterationChannel());
+			tailConfigOfTerminationCriterion.addOutputShipStrategy(ShipStrategyType.FORWARD);
+			
+			JobOutputVertex fakeTailTerminationCriterion = new JobOutputVertex("Fake Tail for Termination Criterion", this.jobGraph);
+			fakeTailTerminationCriterion.setOutputClass(FakeOutputTask.class);
+			fakeTailTerminationCriterion.setNumberOfSubtasks(headVertex.getNumberOfSubtasks());
+			fakeTailTerminationCriterion.setNumberOfSubtasksPerInstance(headVertex.getNumberOfSubtasksPerInstance());
+			this.auxVertices.add(fakeTailTerminationCriterion);
+		
+			// connect the fake tail
+			try {
+				rootOfTerminationCriterionVertex.connectTo(fakeTailTerminationCriterion, ChannelType.INMEMORY, DistributionPattern.POINTWISE);
+			} catch (JobGraphDefinitionException e) {
+				throw new CompilerException("Bug: Cannot connect iteration tail vertex fake tail task for termination criterion");
+			}
+			
+		}
+		
 		// ------------------- register the aggregators -------------------
 		AggregatorRegistry aggs = bulkNode.getIterationNode().getIterationContract().getAggregators();
 		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();

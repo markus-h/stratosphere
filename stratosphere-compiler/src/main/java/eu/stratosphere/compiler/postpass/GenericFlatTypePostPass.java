@@ -139,6 +139,9 @@ public abstract class GenericFlatTypePostPass<X, T extends AbstractSchema<X>> im
 			// traverse the step function for the second time, taking the schema of the partial solution
 			traverse(iterationNode.getRootOfStepFunction(), pss, createUtilities);
 			
+			if(iterationNode.getRootOfTerminationCriterion() != null)
+				traverse(iterationNode.getRootOfTerminationCriterion(), createEmptySchema(), createUtilities);
+			
 			// take the schema from the partial solution node and add its fields to the iteration result schema.
 			// input and output schema need to be identical, so this is essentially a sanity check
 			addSchemaToSchema(pss, schema, iterationNode.getPactContract().getName());

@@ -62,7 +62,7 @@ public abstract class TestBase2 {
 	
 	private NepheleMiniCluster executor;
 	
-	protected boolean printPlan = false;
+	protected boolean printPlan = true;
 	
 	private JobExecutionResult jobExecutionResult;
 	

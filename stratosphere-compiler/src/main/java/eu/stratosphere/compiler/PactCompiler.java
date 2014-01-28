@@ -969,26 +969,35 @@ public class PactCompiler {
 				// first, recursively build the data flow for the step function
 				final GraphCreatingVisitor recursiveCreator = new GraphCreatingVisitor(this, true,
 					this.statistics, this.maxMachines, iterNode.getDegreeOfParallelism(), this.computeEstimates);
-				iter.getNextPartialSolution().accept(recursiveCreator);
 				
-				OptimizerNode rootOfStepFunction = recursiveCreator.con2node.get(iter.getNextPartialSolution());
-				BulkPartialSolutionNode partialSolution = 
-						(BulkPartialSolutionNode) recursiveCreator.con2node.get(iter.getPartialSolution());
-				if (partialSolution == null) {
-					throw new CompilerException("Error: The step functions result does not depend on the partial solution.");
-				}
+				BulkPartialSolutionNode partialSolution = null;
 				
 				OptimizerNode terminationCriterion = null;
 				if(iter.getTerminationCriterion() != null) {
 					iter.getTerminationCriterion().accept(recursiveCreator);
 					terminationCriterion = recursiveCreator.con2node.get(iter.getTerminationCriterion());
+					partialSolution =  (BulkPartialSolutionNode) recursiveCreator.con2node.get(iter.getPartialSolution());
+					
+					if (partialSolution == null) {
+						throw new CompilerException("Error: The termination criterion result does not depend on the partial solution.");
+					}
+					
 				}
 				
-				// add an outgoing connection to the root of the step function
-				PactConnection rootConn = new PactConnection(rootOfStepFunction);
-				rootOfStepFunction.addOutgoingConnection(rootConn);
+				iter.getNextPartialSolution().accept(recursiveCreator);
 				
-				iterNode.setNextPartialSolution(rootOfStepFunction, terminationCriterion, rootConn);
+				partialSolution =  (BulkPartialSolutionNode) recursiveCreator.con2node.get(iter.getPartialSolution());
+				OptimizerNode rootOfStepFunction = recursiveCreator.con2node.get(iter.getNextPartialSolution());
+				if (partialSolution == null) {
+					throw new CompilerException("Error: The step functions result does not depend on the partial solution.");
+				}
+				
+				
+				// add an outgoing connection to the root of the step function
+				//PactConnection rootConn = new PactConnection(rootOfStepFunction);
+				//rootOfStepFunction.addOutgoingConnection(rootConn);
+				
+				iterNode.setNextPartialSolution(rootOfStepFunction, terminationCriterion);
 				iterNode.setPartialSolution(partialSolution);
 				
 				// account for the nested memory consumers
