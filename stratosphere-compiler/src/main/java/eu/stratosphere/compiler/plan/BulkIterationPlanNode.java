@@ -88,7 +88,8 @@ public class BulkIterationPlanNode extends SingleInputPlanNode implements Iterat
 	public void setCosts(Costs nodeCosts) {
 		// add the costs from the step function
 		nodeCosts.addCosts(this.rootOfStepFunction.getCumulativeCosts());
-		//nodeCosts.addCosts(this.rootOfTerminationCriterion.getCumulativeCosts());
+		if(rootOfTerminationCriterion != null)
+			nodeCosts.addCosts(this.rootOfTerminationCriterion.getCumulativeCosts());
 		super.setCosts(nodeCosts);
 	}
 	

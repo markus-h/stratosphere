@@ -71,7 +71,8 @@ public class IterationTailPactTask<S extends Function, OT> extends AbstractItera
 		}
 
 		if (isSolutionSetUpdate) {
-			outputCollector = createSolutionSetUpdateOutputCollector(outputCollector);
+			if (isWorksetIteration)
+				outputCollector = createSolutionSetUpdateOutputCollector(outputCollector);
 
 			if (!isWorksetUpdate) {
 				solutionSetUpdateBarrier = SolutionSetUpdateBarrierBroker.instance().get(brokerKey());

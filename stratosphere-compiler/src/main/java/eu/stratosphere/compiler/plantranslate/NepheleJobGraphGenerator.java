@@ -1149,8 +1149,11 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		
 		
 		// ----------------------------- create the iteration tail ------------------------------
+		
+		final PlanNode rootOfTerminationCriterion = bulkNode.getRootOfTerminationCriterion();
 		final PlanNode rootOfStepFunction = bulkNode.getRootOfStepFunction();
 		final TaskConfig tailConfig;
+		
 		JobTaskVertex rootOfStepFunctionVertex = (JobTaskVertex) this.vertices.get(rootOfStepFunction);
 		if (rootOfStepFunctionVertex == null) {
 			// last op is chained
@@ -1165,30 +1168,38 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		} else {
 			tailConfig = new TaskConfig(rootOfStepFunctionVertex.getConfiguration());
 		}
-		rootOfStepFunctionVertex.setTaskClass(IterationTailPactTask.class);
+		
 		tailConfig.setIsWorksetUpdate();
-		tailConfig.setOutputSerializer(bulkNode.getSerializerForIterationChannel());
-		tailConfig.addOutputShipStrategy(ShipStrategyType.FORWARD);
 		
-		// create the fake output task
-		JobOutputVertex fakeTail = new JobOutputVertex("Fake Tail", this.jobGraph);
-		fakeTail.setOutputClass(FakeOutputTask.class);
-		fakeTail.setNumberOfSubtasks(headVertex.getNumberOfSubtasks());
-		fakeTail.setNumberOfSubtasksPerInstance(headVertex.getNumberOfSubtasksPerInstance());
-		this.auxVertices.add(fakeTail);
-		
-		// connect the fake tail
-		try {
-			rootOfStepFunctionVertex.connectTo(fakeTail, ChannelType.INMEMORY, DistributionPattern.POINTWISE);
-		} catch (JobGraphDefinitionException e) {
-			throw new CompilerException("Bug: Cannot connect iteration tail vertex fake tail task");
+		// No following termination criterion
+		if(rootOfStepFunction.getOutgoingChannels().isEmpty()) {
+			
+			rootOfStepFunctionVertex.setTaskClass(IterationTailPactTask.class);
+			
+			tailConfig.setOutputSerializer(bulkNode.getSerializerForIterationChannel());
+			tailConfig.addOutputShipStrategy(ShipStrategyType.FORWARD);
+			
+			// create the fake output task
+			JobOutputVertex fakeTail = new JobOutputVertex("Fake Tail", this.jobGraph);
+			fakeTail.setOutputClass(FakeOutputTask.class);
+			fakeTail.setNumberOfSubtasks(headVertex.getNumberOfSubtasks());
+			fakeTail.setNumberOfSubtasksPerInstance(headVertex.getNumberOfSubtasksPerInstance());
+			this.auxVertices.add(fakeTail);
+			
+			// connect the fake tail
+			try {
+				rootOfStepFunctionVertex.connectTo(fakeTail, ChannelType.INMEMORY, DistributionPattern.POINTWISE);
+			} catch (JobGraphDefinitionException e) {
+				throw new CompilerException("Bug: Cannot connect iteration tail vertex fake tail task");
+			}
+			
 		}
 		
 		
 		// create the fake output task for termination criterion, if needed
-		final PlanNode rootOfTerminationCriterion = bulkNode.getRootOfTerminationCriterion();
 		final TaskConfig tailConfigOfTerminationCriterion;
-		if(rootOfTerminationCriterion != null) {
+		// If we have a termination criterion and it is not an intermediate node
+		if(rootOfTerminationCriterion != null && rootOfTerminationCriterion.getOutgoingChannels().isEmpty()) {
 			JobTaskVertex rootOfTerminationCriterionVertex = (JobTaskVertex) this.vertices.get(rootOfTerminationCriterion);
 			
 			
@@ -1203,10 +1214,12 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 				// the fake channel is statically typed to pact record. no data is sent over this channel anyways.
 				tailConfigOfTerminationCriterion = taskInChain.getTaskConfig();
 			} else {
-				tailConfigOfTerminationCriterion = new TaskConfig(rootOfStepFunctionVertex.getConfiguration());
+				tailConfigOfTerminationCriterion = new TaskConfig(rootOfTerminationCriterionVertex.getConfiguration());
 			}
+			
 			rootOfTerminationCriterionVertex.setTaskClass(IterationTailPactTask.class);
-			tailConfigOfTerminationCriterion.setIsWorksetUpdate();
+			// Hack
+			tailConfigOfTerminationCriterion.setIsSolutionSetUpdate();
 			tailConfigOfTerminationCriterion.setOutputSerializer(bulkNode.getSerializerForIterationChannel());
 			tailConfigOfTerminationCriterion.addOutputShipStrategy(ShipStrategyType.FORWARD);
 			
@@ -1223,6 +1236,8 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 				throw new CompilerException("Bug: Cannot connect iteration tail vertex fake tail task for termination criterion");
 			}
 			
+			// tell the head that it needs to wait for the solution set updates
+			headConfig.setWaitForSolutionSetUpdate();
 		}
 		
 		// ------------------- register the aggregators -------------------

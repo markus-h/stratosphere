@@ -87,13 +87,13 @@ public class SimplePageRank implements Program, ProgramDescription {
 			Record rec = null;
 			double rankSum = 0.0;
 			
-			System.out.println("REDUCE");
-			
 			while (pageWithPartialRank.hasNext()) {
 				rec = pageWithPartialRank.next();
 				rankSum += rec.getField(1, DoubleValue.class).getValue();
 			}
 			sum.setValue(rankSum);
+			
+			System.out.println("REDUCE "+rankSum);
 			
 			rec.setField(1, sum);
 			out.collect(rec);
@@ -191,10 +191,10 @@ public class SimplePageRank implements Program, ProgramDescription {
 		
 		MapOperator mapper = MapOperator.builder(new TestMapper())
 				.input(iteration.getPartialSolution())
-				.name("Termination Criterion Aggregation Wrapper")
+				.name("TestMapper")
 				.build();
 		
-		iteration.setTerminationCriterion(mapper);
+		iteration.setTerminationCriterion(termination);
 		
 		FileDataSink out = new FileDataSink(new PageWithRankOutFormat(), outputPath, iteration, "Final Ranks");
 

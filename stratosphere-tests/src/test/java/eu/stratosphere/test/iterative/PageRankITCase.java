@@ -64,7 +64,7 @@ public class PageRankITCase extends TestBase2 {
 	protected Plan getTestJob() {
 		SimplePageRank pr = new SimplePageRank();
 		Plan plan = pr.getPlan(
-			config.getString("NumSubtasks", "1"), 
+			"1", //config.getString("NumSubtasks", "1"), 
 			pagesPath,
 			edgesPath,
 			resultPath,
