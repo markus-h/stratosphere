@@ -26,12 +26,9 @@ import eu.stratosphere.api.java.record.functions.JoinFunction;
 import eu.stratosphere.api.java.record.functions.MapFunction;
 import eu.stratosphere.api.java.record.functions.ReduceFunction;
 import eu.stratosphere.api.java.record.functions.FunctionAnnotation.ConstantFields;
-import eu.stratosphere.api.java.record.operators.BulkIterationOperator;
 import eu.stratosphere.api.java.record.operators.JoinOperator;
 import eu.stratosphere.api.java.record.operators.MapOperator;
 import eu.stratosphere.api.java.record.operators.ReduceOperator;
-import eu.stratosphere.api.java.record.operators.BulkIterationOperator.TerminationCriterionAggregator;
-import eu.stratosphere.api.java.record.operators.BulkIterationOperator.TerminationCriterionMapper;
 import eu.stratosphere.api.java.record.operators.ReduceOperator.Combinable;
 import eu.stratosphere.types.DoubleValue;
 import eu.stratosphere.types.IntValue;
@@ -121,7 +118,7 @@ public class SimplePageRank implements Program, ProgramDescription {
 			
 			System.out.println("CRIT "+criterion);
 			
-			if(Math.abs(criterion) < epsilon)
+			if(Math.abs(criterion) > epsilon)
 			{
 				record.setField(0, new IntValue(1));
 				out.collect(record);
@@ -163,7 +160,7 @@ public class SimplePageRank implements Program, ProgramDescription {
 			pageWithRankInputPath, "PageWithRank Input");
 		pageWithRankInput.getParameters().setLong(NUM_VERTICES_CONFIG_PARAM, numVertices);
 		
-		BulkIterationOperator iteration = new BulkIterationOperator("Page Rank Loop");
+		BulkIteration iteration = new BulkIteration("Page Rank Loop");
 		iteration.setInput(pageWithRankInput);
 		
 		FileDataSource adjacencyListInput = new FileDataSource(new ImprovedAdjacencyListInputFormat(),
@@ -194,7 +191,7 @@ public class SimplePageRank implements Program, ProgramDescription {
 				.name("TestMapper")
 				.build();
 		
-		iteration.setTerminationCriterion(termination);
+		iteration.setTerminationCriterion(mapper);
 		
 		FileDataSink out = new FileDataSink(new PageWithRankOutFormat(), outputPath, iteration, "Final Ranks");
 

@@ -13,11 +13,23 @@
 
 package eu.stratosphere.api.common.operators;
 
+import java.io.Serializable;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import eu.stratosphere.api.common.InvalidJobException;
+import eu.stratosphere.api.common.aggregators.Aggregator;
 import eu.stratosphere.api.common.aggregators.AggregatorRegistry;
+import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
 import eu.stratosphere.api.common.functions.AbstractFunction;
+import eu.stratosphere.api.common.functions.GenericMapper;
+import eu.stratosphere.api.common.operators.base.MapOperatorBase;
 import eu.stratosphere.api.common.operators.util.UserCodeClassWrapper;
 import eu.stratosphere.api.common.operators.util.UserCodeWrapper;
+import eu.stratosphere.configuration.Configuration;
+import eu.stratosphere.types.IntValue;
+import eu.stratosphere.util.Collector;
 import eu.stratosphere.util.Visitor;
 
 /**
@@ -90,7 +102,21 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 	 * @param criterion
 	 */
 	public void setTerminationCriterion(Operator criterion) {
-		throw new UnsupportedOperationException("Termination criterion support is currently not implemented.");
+		// Mapper to aggregate number of matching fields
+//		MapOperator mapper = MapOperator.builder(new TerminationCriterionMapper())
+//				.input(criterion)
+//				.name("Termination Criterion Aggregation Wrapper")
+//				.build();
+//		
+		MapOperatorBase<TerminationCriterionMapper> mapper = new MapOperatorBase<TerminationCriterionMapper>(TerminationCriterionMapper.class, "Termination Criterion Aggregation Wrapper");
+		mapper.setInput(criterion);
+		
+		//GenericDataSink out = new GenericDataSink(new DummyOutputFormat(), mapper, "Dummy Sink (never used)");
+		//FileDataSink out = new FileDataSink(new DummyOutputFormat(), "file:/C:/dummy", mapper, "Dummy Sink (never used)");
+		
+		this.terminationCriterion = mapper;
+		
+		this.getAggregators().registerAggregationConvergenceCriterion("terminationCriterion.aggregator", TerminationCriterionAggregator.class, TerminationCriterionAggregationConvergence.class);
 	}
 	
 	/**
@@ -162,6 +188,71 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 		@Override
 		public UserCodeWrapper<?> getUserCodeWrapper() {
 			return null;
+		}
+	}
+	
+	public static class TerminationCriterionMapper extends AbstractFunction implements Serializable, GenericMapper<Object, Object> {
+		private static final long serialVersionUID = 1L;
+		private TerminationCriterionAggregator aggregator;
+		
+		@Override
+		public void open(Configuration parameters) {
+			
+			aggregator = (TerminationCriterionAggregator) getIterationRuntimeContext().<IntValue>getIterationAggregator("terminationCriterion.aggregator");
+		}
+		
+		@Override
+		public void map(Object record, Collector<Object> collector) {
+			
+			System.out.println("MAPCRIT");
+			aggregator.aggregate(1);
+		}
+	}
+	
+	public static class TerminationCriterionAggregator implements Aggregator<IntValue> {
+
+		private int count = 0;
+
+		@Override
+		public IntValue getAggregate() {
+			return new IntValue(count);
+		}
+
+		public void aggregate(int count) {
+			this.count += count;
+		}
+
+		@Override
+		public void aggregate(IntValue count) {
+			this.count += count.getValue();
+		}
+
+		@Override
+		public void reset() {
+			count = 0;
+		}
+	}
+
+	public static class TerminationCriterionAggregationConvergence implements ConvergenceCriterion<IntValue> {
+
+		private static final Log log = LogFactory.getLog(TerminationCriterionAggregationConvergence.class);
+
+		@Override
+		public boolean isConverged(int iteration, IntValue countAggregate) {
+			int count = countAggregate.getValue();
+			
+			System.out.println("ISCONVERGED "+count);
+
+			if (log.isInfoEnabled()) {
+				log.info("Stats in iteration [" + iteration + "]: " + count);
+			}
+
+			if(count == 0) {
+				return true;
+			}
+			else {
+				return false;
+			}
 		}
 	}
 }
