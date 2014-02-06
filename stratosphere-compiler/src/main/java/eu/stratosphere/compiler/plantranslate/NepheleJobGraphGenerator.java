@@ -741,6 +741,15 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 					chaining = false;
 				}
 			}
+			// cannot chain the nodes that produce the next workset in a bulk iteration if a termination criterion follows
+			if (this.currentIteration != null && this.currentIteration instanceof BulkIterationPlanNode &&
+					node.getOutgoingChannels().size() > 0)
+			{
+				BulkIterationPlanNode wspn = (BulkIterationPlanNode) this.currentIteration;
+				if (wspn.getRootOfStepFunction() == pred || wspn.getRootOfTerminationCriterion() == pred) {
+					chaining = false;
+				}
+			}
 		}
 		
 		final JobTaskVertex vertex;

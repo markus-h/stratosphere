@@ -191,6 +191,9 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 		}
 	}
 	
+	/**
+	 * Special Mapper that is added before a termination criterion and is only a container for an special aggregator
+	 */
 	public static class TerminationCriterionMapper extends AbstractFunction implements Serializable, GenericMapper<Object, Object> {
 		private static final long serialVersionUID = 1L;
 		private TerminationCriterionAggregator aggregator;
@@ -204,11 +207,13 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 		@Override
 		public void map(Object record, Collector<Object> collector) {
 			
-			System.out.println("MAPCRIT");
 			aggregator.aggregate(1);
 		}
 	}
 	
+	/**
+	 * Aggregator that basically only adds 1 for every output tuple of the termination criterion branch
+	 */
 	public static class TerminationCriterionAggregator implements Aggregator<IntValue> {
 
 		private int count = 0;
@@ -233,6 +238,9 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 		}
 	}
 
+	/**
+	 * Convergence for the termination criterion is reached if no tuple is output at current iteration for the termination criterion branch
+	 */
 	public static class TerminationCriterionAggregationConvergence implements ConvergenceCriterion<IntValue> {
 
 		private static final Log log = LogFactory.getLog(TerminationCriterionAggregationConvergence.class);
@@ -240,11 +248,9 @@ public class BulkIteration extends SingleInputOperator<AbstractFunction> impleme
 		@Override
 		public boolean isConverged(int iteration, IntValue countAggregate) {
 			int count = countAggregate.getValue();
-			
-			System.out.println("ISCONVERGED "+count);
 
 			if (log.isInfoEnabled()) {
-				log.info("Stats in iteration [" + iteration + "]: " + count);
+				log.info("Termination criterion stats in iteration [" + iteration + "]: " + count);
 			}
 
 			if(count == 0) {

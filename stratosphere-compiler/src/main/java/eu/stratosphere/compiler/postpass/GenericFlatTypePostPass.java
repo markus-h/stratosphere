@@ -128,6 +128,17 @@ public abstract class GenericFlatTypePostPass<X, T extends AbstractSchema<X>> im
 				throw new CompilerException("Optimizer cannot compile an iteration step function where next partial solution is created by a Union node.");
 			}
 			
+			// traverse the termination criterion for the first time. create schema only, no utilities. Needed in case of intermediate termination criterion
+			if (iterationNode.getRootOfTerminationCriterion() != null) {
+				SingleInputPlanNode addMapper = (SingleInputPlanNode) iterationNode.getRootOfTerminationCriterion();
+				traverse(addMapper.getInput().getSource(), createEmptySchema(), false);
+				try {
+					addMapper.getInput().setSerializer(createSerializer(createEmptySchema()));
+				} catch (MissingFieldTypeInfoException e) {
+					throw new RuntimeException(e);
+				}
+			}
+			
 			// traverse the step function for the first time. create schema only, no utilities
 			traverse(iterationNode.getRootOfStepFunction(), schema, false);
 			
