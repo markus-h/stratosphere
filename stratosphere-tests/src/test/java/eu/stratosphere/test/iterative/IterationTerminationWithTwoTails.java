@@ -107,7 +107,7 @@ public class IterationTerminationWithTwoTails extends TestBase2 {
     		.field(StringValue.class, 0);
 
 		Plan plan = new Plan(finalResult, "Iteration with AllReducer (keyless Reducer)");
-		plan.setDefaultParallelism(numSubTasks);
+		plan.setDefaultParallelism(4);
 //		Assert.assertTrue(plan.getDefaultParallelism() > 1);
 		return plan;
 	}
