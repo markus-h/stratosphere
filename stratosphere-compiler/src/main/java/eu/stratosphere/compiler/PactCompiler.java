@@ -61,14 +61,18 @@ import eu.stratosphere.compiler.dag.SolutionSetNode;
 import eu.stratosphere.compiler.dag.TempMode;
 import eu.stratosphere.compiler.dag.WorksetIterationNode;
 import eu.stratosphere.compiler.dag.WorksetNode;
+import eu.stratosphere.compiler.deadlock.DeadlockGraph;
+import eu.stratosphere.compiler.deadlock.DeadlockVertex;
 import eu.stratosphere.compiler.plan.BinaryUnionPlanNode;
 import eu.stratosphere.compiler.plan.BulkIterationPlanNode;
 import eu.stratosphere.compiler.plan.BulkPartialSolutionPlanNode;
 import eu.stratosphere.compiler.plan.Channel;
+import eu.stratosphere.compiler.plan.DualInputPlanNode;
 import eu.stratosphere.compiler.plan.IterationPlanNode;
 import eu.stratosphere.compiler.plan.NAryUnionPlanNode;
 import eu.stratosphere.compiler.plan.OptimizedPlan;
 import eu.stratosphere.compiler.plan.PlanNode;
+import eu.stratosphere.compiler.plan.SingleInputPlanNode;
 import eu.stratosphere.compiler.plan.SinkJoinerPlanNode;
 import eu.stratosphere.compiler.plan.SinkPlanNode;
 import eu.stratosphere.compiler.plan.SolutionSetPlanNode;
@@ -85,6 +89,7 @@ import eu.stratosphere.nephele.ipc.RPC;
 import eu.stratosphere.nephele.net.NetUtils;
 import eu.stratosphere.nephele.protocols.ExtendedManagementProtocol;
 import eu.stratosphere.pact.runtime.shipping.ShipStrategyType;
+import eu.stratosphere.pact.runtime.task.DamBehavior;
 import eu.stratosphere.pact.runtime.task.DriverStrategy;
 import eu.stratosphere.pact.runtime.task.util.LocalStrategy;
 import eu.stratosphere.util.InstantiationUtil;
@@ -719,6 +724,8 @@ public class PactCompiler {
 		} else if (bestPlanRoot instanceof SinkJoinerPlanNode) {
 			((SinkJoinerPlanNode) bestPlanRoot).getDataSinks(bestPlanSinks);
 		}
+		
+		//bestPlanRoot.accept(new DeadlockPreventer());
 
 		// finalize the plan
 		OptimizedPlan plan = new PlanFinalizer().createFinalPlan(bestPlanSinks, program.getJobName(), program, memoryPerInstance);
@@ -730,6 +737,14 @@ public class PactCompiler {
 		
 		// post pass the plan. this is the phase where the serialization and comparator code is set
 		postPasser.postPass(plan);
+		
+		DeadlockPreventer dp = new DeadlockPreventer();
+		dp.resolveDeadlocks(plan);
+		//plan.accept(dp);
+		
+//		DeadlockGraphConnector dc = new DeadlockGraphConnector(dp.g);
+//		plan.accept(dc);
+//		System.out.println(dp.getGraph());
 		
 		return plan;
 	}
@@ -1646,6 +1661,109 @@ public class PactCompiler {
 					}
 				}
 				jobManagerConnection = null;
+			}
+		}
+	}
+	
+	private static final class DeadlockPreventer implements Visitor<PlanNode> {
+		
+		private DeadlockGraph g;
+		
+		public DeadlockPreventer() {
+			this.g = new DeadlockGraph();
+		}
+
+		public void resolveDeadlocks(OptimizedPlan plan) {
+
+			plan.accept(this);
+			while(g.hasCycle()) {
+				
+				// in the remaining plan has a cycle
+				for(DeadlockVertex v : g.vertices) {
+
+					// first strategy to fix -> swap build and probe side
+					if(v.getOriginal().getDriverStrategy().equals(DriverStrategy.HYBRIDHASH_BUILD_FIRST)) {
+
+						v.getOriginal().setDriverStrategy(DriverStrategy.HYBRIDHASH_BUILD_SECOND);
+						
+						if(hasDeadlock(plan)) {
+							// Didn't fix anything -> revert
+							v.getOriginal().setDriverStrategy(DriverStrategy.HYBRIDHASH_BUILD_FIRST);
+						}
+						else {
+							// deadlock resolved
+							break;
+						}
+					}
+					
+					// other direction
+					if(v.getOriginal().getDriverStrategy().equals(DriverStrategy.HYBRIDHASH_BUILD_SECOND)) {
+						
+						v.getOriginal().setDriverStrategy(DriverStrategy.HYBRIDHASH_BUILD_FIRST);
+						
+						if(hasDeadlock(plan)) {
+							// Didn't fix anything -> revert
+							v.getOriginal().setDriverStrategy(DriverStrategy.HYBRIDHASH_BUILD_SECOND);
+						}
+						else {
+							// deadlock resolved
+							break;
+						}
+					}
+					
+					// if that does not help -> force materialization
+					// TODO
+
+				}
+				
+			}
+		
+		}
+		
+		public boolean hasDeadlock(OptimizedPlan plan) {
+			this.g = new DeadlockGraph();
+			plan.accept(this);
+			if(g.hasCycle())
+				return true;
+			else
+				return false;
+		}
+
+		@Override
+		public boolean preVisit(PlanNode visitable) {
+			
+			g.addVertex(visitable);
+			return true;
+		}
+
+		@Override
+		public void postVisit(PlanNode visitable) {
+			if(visitable instanceof SingleInputPlanNode) {
+				SingleInputPlanNode n = (SingleInputPlanNode) visitable;
+				
+				if(n.getDriverStrategy().firstDam().equals(DamBehavior.FULL_DAM)) {
+					g.addEdge(n, n.getPredecessor());
+				}
+				else {
+					g.addEdge(n.getPredecessor(), n);
+				}
+			}
+			else if(visitable instanceof DualInputPlanNode) {
+				DualInputPlanNode n = (DualInputPlanNode) visitable;
+				
+				if(n.getDriverStrategy().firstDam().equals(DamBehavior.FULL_DAM)) {
+					g.addEdge(n, n.getInput1().getSource());
+				}
+				else {
+					g.addEdge(n.getInput1().getSource(), n);
+				}
+				
+				if(n.getDriverStrategy().secondDam().equals(DamBehavior.FULL_DAM)) {
+					g.addEdge(n, n.getInput2().getSource());
+				}
+				else {
+					g.addEdge(n.getInput2().getSource(), n);
+				}
 			}
 		}
 	}
