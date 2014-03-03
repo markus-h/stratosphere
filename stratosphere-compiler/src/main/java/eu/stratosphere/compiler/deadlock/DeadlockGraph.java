@@ -63,7 +63,6 @@ public class DeadlockGraph {
 
 	public boolean hasCycle() {
 		
-	   
 	   Collection <DeadlockVertex> vertexCollect = this.vertices();
 	   
 	   Queue <DeadlockVertex> q; // Queue will store vertices that have in-degree of zero
