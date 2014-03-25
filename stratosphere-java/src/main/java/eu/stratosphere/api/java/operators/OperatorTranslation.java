@@ -168,6 +168,10 @@ public class OperatorTranslation {
 
 		iterationOperator.setInitialSolutionSet(translate(iterationHead.getInput1()));
 		iterationOperator.setInitialWorkset(translate(iterationHead.getInput2()));
+		
+		if(iterationEnd.getTerminationCriterion() != null) {
+			iterationOperator.setTerminationCriterion(translate(iterationEnd.getTerminationCriterion()));
+		}
 
 		return iterationOperator;
 	}
