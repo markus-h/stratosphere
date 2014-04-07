@@ -51,6 +51,7 @@ import eu.stratosphere.api.java.operators.ReduceGroupOperator;
 import eu.stratosphere.api.java.operators.ReduceOperator;
 import eu.stratosphere.api.java.tuple.Tuple;
 import eu.stratosphere.api.java.typeutils.InputTypeConfigurable;
+import eu.stratosphere.api.java.typeutils.TupleTypeInfo;
 import eu.stratosphere.api.java.typeutils.TypeInformation;
 import eu.stratosphere.core.fs.Path;
 
@@ -701,6 +702,27 @@ public abstract class DataSet<T> {
 		DataSink<T> sink = new DataSink<T>(this, outputFormat, this.type);
 		this.context.registerDataSink(sink);
 		return sink;
+	}
+	
+	public NamedDataSet named(String... names) {
+		if(!this.getType().isTupleType()) {
+			throw new RuntimeException("Currently NamedDataSet can only be instantiated from Tuple types");
+		}
+		
+		TupleTypeInfo<?> tupleType = (TupleTypeInfo<?>) this.getType();
+		
+		if(names.length != tupleType.getArity()) {
+			throw new RuntimeException("You must specify a name for every field");
+		}
+		
+		NamedDataSet nds = new NamedDataSet(this.context);
+		
+		int i = 0;
+		for(String name : names) {
+			nds.addItem(name, tupleType.getTypeAt(i++).getTypeClass());
+		}
+		
+		return nds;
 	}
 	
 	
