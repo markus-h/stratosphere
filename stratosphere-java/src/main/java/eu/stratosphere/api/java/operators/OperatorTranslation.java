@@ -30,6 +30,7 @@ import eu.stratosphere.api.java.DeltaIterativeDataSet;
 import eu.stratosphere.api.java.DeltaIterativeResultDataSet;
 import eu.stratosphere.api.java.IterativeDataSet;
 import eu.stratosphere.api.java.IterativeResultDataSet;
+import eu.stratosphere.api.java.NamedToTypedDataSet;
 import eu.stratosphere.api.java.operators.translation.BinaryNodeTranslation;
 import eu.stratosphere.api.java.operators.translation.JavaPlan;
 import eu.stratosphere.api.java.operators.translation.PlanBulkIterationOperator;
@@ -91,6 +92,9 @@ public class OperatorTranslation {
 			dataFlowOp = translateBulkIteration((IterativeResultDataSet<?>) dataSet);
 		}
 		else if (dataSet instanceof DeltaIterativeResultDataSet<?, ?>) {
+			dataFlowOp = translateDeltaIteration((DeltaIterativeResultDataSet<?, ?>) dataSet);
+		}
+		else if (dataSet instanceof NamedToTypedDataSet<?>) {
 			dataFlowOp = translateDeltaIteration((DeltaIterativeResultDataSet<?, ?>) dataSet);
 		}
 		else {

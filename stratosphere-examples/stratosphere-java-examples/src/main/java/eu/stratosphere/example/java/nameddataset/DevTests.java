@@ -21,12 +21,9 @@ import java.util.List;
 import eu.stratosphere.api.java.DataSet;
 import eu.stratosphere.api.java.ExecutionEnvironment;
 import eu.stratosphere.api.java.NamedDataSet;
-import eu.stratosphere.api.java.aggregation.Aggregations;
 import eu.stratosphere.api.java.functions.FlatMapFunction;
 import eu.stratosphere.api.java.functions.ReduceFunction;
 import eu.stratosphere.api.java.tuple.*;
-import eu.stratosphere.test.javaApiOperators.ReduceITCase.Tuple3Reduce;
-import eu.stratosphere.test.javaApiOperators.util.CollectionDataSets;
 import eu.stratosphere.util.Collector;
 
 
@@ -52,8 +49,12 @@ public class DevTests {
 		
 		DataSet<Tuple3<Integer, Long, String>> ds = get3TupleDataSet(env);
 		NamedDataSet nds = ds.named("Eins", "Zwei", "Drei");
-		DataSet<Tuple3<Integer, Long, String>> reduceDs = ds.
-				groupBy(1).reduce(new Tuple3Reduce("B-)"));
+
+		DataSet<?> reduceDs = nds.get("Eins", "Zwei", "Drei").types(Integer.class, Long.class, String.class)
+				.groupBy(1).reduce(new Tuple3Reduce("B-)"));
+		
+//		DataSet<? extends Tuple> reduceDs = ds.
+//				groupBy(1).reduce(new Tuple3Reduce("B-)"));
 		
 		//reduceDs.writeAsCsv(resultPath);
 		reduceDs.print();
