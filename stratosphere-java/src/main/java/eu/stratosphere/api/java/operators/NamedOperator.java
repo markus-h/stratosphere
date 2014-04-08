@@ -12,22 +12,20 @@
  * specific language governing permissions and limitations under the License.
  *
  **********************************************************************************************************************/
-package eu.stratosphere.api.java;
+package eu.stratosphere.api.java.operators;
 
-import eu.stratosphere.api.java.operators.Operator;
-import eu.stratosphere.api.java.tuple.Tuple;
+
+import eu.stratosphere.api.java.DataSet;
+import eu.stratosphere.api.java.ExecutionEnvironment;
+import eu.stratosphere.api.java.NamedDataSet;
 import eu.stratosphere.api.java.typeutils.TypeInformation;
 
-public class NamedToTypedDataSet<T extends Tuple> extends Operator<T, NamedToTypedDataSet<T>> {
-	
-	private DataSet<?> derivedFrom;
 
-	protected NamedToTypedDataSet(ExecutionEnvironment context,
-			TypeInformation<T> type,
-			DataSet<?> derivedFrom) {
-		super(context, type);
-		
-		this.derivedFrom = derivedFrom;
+public abstract class NamedOperator extends NamedDataSet {
+
+	public NamedOperator(ExecutionEnvironment context, DataSet<?> derivedFrom) {
+		super(context, derivedFrom);
+		// TODO Auto-generated constructor stub
 	}
 
 }

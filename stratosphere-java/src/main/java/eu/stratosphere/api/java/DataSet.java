@@ -715,11 +715,11 @@ public abstract class DataSet<T> {
 			throw new RuntimeException("You must specify a name for every field");
 		}
 		
-		NamedDataSet nds = new NamedDataSet(this.context, (DataSet<? extends Tuple>) this);
+		NamedDataSet nds = new NamedDataSet(this.context, this);
 		
 		int i = 0;
 		for(String name : names) {
-			nds.addItem(name, tupleType.getTypeAt(i).getTypeClass(), i);
+			nds.addItemFromTuple(name, tupleType.getTypeAt(i).getTypeClass(), i);
 			i++;
 		}
 		

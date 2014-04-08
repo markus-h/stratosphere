@@ -21,52 +21,38 @@ import java.util.List;
 import eu.stratosphere.api.java.DataSet;
 import eu.stratosphere.api.java.ExecutionEnvironment;
 import eu.stratosphere.api.java.NamedDataSet;
-import eu.stratosphere.api.java.functions.FlatMapFunction;
 import eu.stratosphere.api.java.functions.ReduceFunction;
-import eu.stratosphere.api.java.tuple.*;
-import eu.stratosphere.util.Collector;
+import eu.stratosphere.api.java.tuple.Tuple3;
 
 
-@SuppressWarnings("serial")
 public class DevTests {
-	
-	public static final class Tokenizer extends FlatMapFunction<String, Tuple2<String, Integer>> {
-
-		@Override
-		public void flatMap(String value, Collector<Tuple2<String, Integer>> out) {
-			String[] tokens = value.toLowerCase().split("\\W");
-			for (String token : tokens) {
-				if (token.length() > 0) {
-					out.collect(new Tuple2<String, Integer>(token, 1));
-				}
-			}
-		}
-	}
 	
 	
 	public static void main(String[] args) throws Exception {
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
-		DataSet<Tuple3<Integer, Long, String>> ds = get3TupleDataSet(env);
-		NamedDataSet nds = ds.named("Eins", "Zwei", "Drei");
+		NamedDataSet nds = get3TupleDataSet(env).named("ID", "Number", "Comment");
+		
+		//NamedDataSet join = get3TupleDataSet(env).named("ID", "Number", "Comment");
+		
+		//NamedDataSet join_result = nds.join(join).where("ID").equalTo("ID");
+		
+		//NamedDataSet group_result = nds.groupBy("ID");
 
-		DataSet<?> reduceDs = nds.get("Eins", "Zwei", "Drei").types(Integer.class, Long.class, String.class)
-				.groupBy(1).reduce(new Tuple3Reduce("B-)"));
+		// to apply a udf
+		NamedDataSet reduceDs = nds.get("ID", "Number", "Comment").types(Integer.class, Long.class, String.class)
+				.groupBy(1).reduce(new Tuple3Reduce("B-)")).named("ID", "Number", "Comment");
 		
-//		DataSet<? extends Tuple> reduceDs = ds.
-//				groupBy(1).reduce(new Tuple3Reduce("B-)"));
-		
-		//reduceDs.writeAsCsv(resultPath);
-		reduceDs.print();
+		reduceDs.get("ID", "Number", "Comment").types(Integer.class, Long.class, String.class).print();
 		env.execute();
 		
-		// return expected result
-//		return "1,1,Hi\n" +
-//				"5,2,B-)\n" +
-//				"15,3,B-)\n" +
-//				"34,4,B-)\n" +
-//				"65,5,B-)\n" +
-//				"111,6,B-)\n";
+		System.out.println("\n\nExpected:\n" +
+				"1,1,Hi\n" +
+				"5,2,B-)\n" +
+				"15,3,B-)\n" +
+				"34,4,B-)\n" +
+				"65,5,B-)\n" +
+				"111,6,B-)\n");
 	}
 	
 	public static DataSet<Tuple3<Integer, Long, String>> get3TupleDataSet(ExecutionEnvironment env) {
