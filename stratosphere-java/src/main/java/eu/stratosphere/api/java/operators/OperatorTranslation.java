@@ -95,7 +95,7 @@ public class OperatorTranslation {
 			dataFlowOp = translateDeltaIteration((DeltaIterativeResultDataSet<?, ?>) dataSet);
 		}
 		else if (dataSet instanceof NamedToTypedDataSet<?>) {
-			dataFlowOp = translateDeltaIteration((DeltaIterativeResultDataSet<?, ?>) dataSet);
+			dataFlowOp = null;
 		}
 		else {
 			throw new RuntimeException("Error while creating the data flow plan for the program: Unknown operator or data set type: " + dataSet);
