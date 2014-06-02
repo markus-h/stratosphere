@@ -98,6 +98,7 @@ import eu.stratosphere.nephele.protocols.AccumulatorProtocol;
 import eu.stratosphere.nephele.protocols.ChannelLookupProtocol;
 import eu.stratosphere.nephele.protocols.ExtendedManagementProtocol;
 import eu.stratosphere.nephele.protocols.InputSplitProviderProtocol;
+import eu.stratosphere.nephele.protocols.IterationReportProtocol;
 import eu.stratosphere.nephele.protocols.JobManagerProtocol;
 import eu.stratosphere.nephele.services.accumulators.AccumulatorEvent;
 import eu.stratosphere.nephele.taskmanager.AbstractTaskResult;
@@ -111,6 +112,7 @@ import eu.stratosphere.nephele.taskmanager.runtime.ExecutorThreadFactory;
 import eu.stratosphere.nephele.topology.NetworkTopology;
 import eu.stratosphere.nephele.types.IntegerRecord;
 import eu.stratosphere.nephele.util.SerializableArrayList;
+import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.util.StringUtils;
 
 /**
@@ -122,7 +124,7 @@ import eu.stratosphere.util.StringUtils;
  * 
  */
 public class JobManager implements DeploymentManager, ExtendedManagementProtocol, InputSplitProviderProtocol,
-		JobManagerProtocol, ChannelLookupProtocol, JobStatusListener, AccumulatorProtocol
+		JobManagerProtocol, ChannelLookupProtocol, JobStatusListener, AccumulatorProtocol, IterationReportProtocol
 {
 	public static enum ExecutionMode { LOCAL, CLUSTER }
 	
@@ -1231,5 +1233,12 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	@Override
 	public AccumulatorEvent getAccumulatorResults(JobID jobID) throws IOException {
 		return new AccumulatorEvent(jobID, this.accumulatorManager.getJobAccumulators(jobID), false);
+	}
+
+	@Override
+	public void reportEndOfSuperstep(WorkerDoneEvent iterationEvent)
+			throws IOException {
+		// TODO Auto-generated method stub
+		
 	}
 }

@@ -47,6 +47,7 @@ import eu.stratosphere.nephele.io.channels.ChannelID;
 import eu.stratosphere.nephele.io.channels.ChannelType;
 import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.nephele.protocols.AccumulatorProtocol;
+import eu.stratosphere.nephele.protocols.IterationReportProtocol;
 import eu.stratosphere.nephele.services.iomanager.IOManager;
 import eu.stratosphere.nephele.services.memorymanager.MemoryManager;
 import eu.stratosphere.nephele.template.AbstractInvokable;
@@ -148,6 +149,11 @@ public class RuntimeEnvironment implements Environment, Runnable {
 	 * The RPC procy to report accumulators to JobManager
 	 */
 	private AccumulatorProtocol accumulatorProtocolProxy = null;
+	
+	/**
+	 * The RPC procy to report end of superstep to JobManager
+	 */
+	private IterationReportProtocol iterationReportProtocolProxy = null;
 
 	/**
 	 * The index of this subtask in the subtask group.
@@ -221,7 +227,9 @@ public class RuntimeEnvironment implements Environment, Runnable {
 	public RuntimeEnvironment(final TaskDeploymentDescriptor tdd,
 			final MemoryManager memoryManager, final IOManager ioManager,
 			final InputSplitProvider inputSplitProvider,
-			AccumulatorProtocol accumulatorProtocolProxy, Map<String, FutureTask<Path>> cpTasks) throws Exception {
+			AccumulatorProtocol accumulatorProtocolProxy, 
+			IterationReportProtocol iterationReportProtocolProxy,
+			Map<String, FutureTask<Path>> cpTasks) throws Exception {
 
 		this.jobID = tdd.getJobID();
 		this.taskName = tdd.getTaskName();
@@ -854,6 +862,11 @@ public class RuntimeEnvironment implements Environment, Runnable {
 	@Override
 	public AccumulatorProtocol getAccumulatorProtocolProxy() {
 		return accumulatorProtocolProxy;
+	}
+	
+	@Override
+	public IterationReportProtocol getIterationReportProtocolProxy() {
+		return this.iterationReportProtocolProxy;
 	}
 
 	public void addCopyTaskForCacheFile(String name, FutureTask<Path> copyTask) {

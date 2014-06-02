@@ -30,6 +30,7 @@ import eu.stratosphere.core.memory.DataInputView;
 import eu.stratosphere.core.memory.MemorySegment;
 import eu.stratosphere.nephele.io.AbstractRecordWriter;
 import eu.stratosphere.nephele.io.RecordWriter;
+import eu.stratosphere.nephele.services.accumulators.AccumulatorEvent;
 import eu.stratosphere.pact.runtime.hash.CompactingHashTable;
 import eu.stratosphere.pact.runtime.io.InputViewIterator;
 import eu.stratosphere.pact.runtime.iterative.concurrent.BlockingBackChannel;
@@ -297,7 +298,16 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				}
 
 				sendEventToSync(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
-
+				// Report end of superstep to JobManager
+				synchronized (getEnvironment().getIterationReportProtocolProxy()) {
+					try {
+						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
+					} catch (IOException e) {
+						throw new RuntimeException("Communication with JobManager is broken. Could not send accumulators.", e);
+					}
+				}
+				
+				
 				if (log.isInfoEnabled()) {
 					log.info(formatLogString("waiting for other workers in iteration [" + currentIteration() + "]"));
 				}

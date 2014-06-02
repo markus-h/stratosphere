@@ -75,6 +75,7 @@ import eu.stratosphere.nephele.profiling.TaskManagerProfiler;
 import eu.stratosphere.nephele.protocols.AccumulatorProtocol;
 import eu.stratosphere.nephele.protocols.ChannelLookupProtocol;
 import eu.stratosphere.nephele.protocols.InputSplitProviderProtocol;
+import eu.stratosphere.nephele.protocols.IterationReportProtocol;
 import eu.stratosphere.nephele.protocols.JobManagerProtocol;
 import eu.stratosphere.nephele.protocols.TaskOperationProtocol;
 import eu.stratosphere.nephele.services.iomanager.IOManager;
@@ -114,6 +115,8 @@ public class TaskManager implements TaskOperationProtocol {
 	private final ExecutorService executorService = Executors.newCachedThreadPool(ExecutorThreadFactory.INSTANCE);
 	
 	private final AccumulatorProtocol accumulatorProtocolProxy;
+	
+	private final IterationReportProtocol iterationReportProtocolProxy;
 
 	private final Server taskManagerServer;
 
@@ -246,6 +249,15 @@ public class TaskManager implements TaskOperationProtocol {
 		// Try to create local stub for the accumulators
 		try {
 			this.accumulatorProtocolProxy = RPC.getProxy(AccumulatorProtocol.class, jobManagerAddress, NetUtils.getSocketFactory());
+		} catch (IOException e) {
+			LOG.fatal("Failed to initialize accumulator protocol: " + e.getMessage(), e);
+			throw new Exception("Failed to initialize accumulator protocol: " + e.getMessage(), e);
+		}
+		
+
+		// Try to create local stub for iteration handling
+		try {
+			this.iterationReportProtocolProxy = RPC.getProxy(IterationReportProtocol.class, jobManagerAddress, NetUtils.getSocketFactory());
 		} catch (IOException e) {
 			LOG.fatal("Failed to initialize accumulator protocol: " + e.getMessage(), e);
 			throw new Exception("Failed to initialize accumulator protocol: " + e.getMessage(), e);
@@ -650,7 +662,7 @@ public class TaskManager implements TaskOperationProtocol {
 
 			try {
 				re = new RuntimeEnvironment(tdd, this.memoryManager, this.ioManager, new TaskInputSplitProvider(jobID,
-					vertexID, this.globalInputSplitProvider), this.accumulatorProtocolProxy, cpTasks);
+					vertexID, this.globalInputSplitProvider), this.accumulatorProtocolProxy, this.iterationReportProtocolProxy, cpTasks);
 			} catch (Throwable t) {
 				final TaskSubmissionResult result = new TaskSubmissionResult(vertexID,
 					AbstractTaskResult.ReturnCode.DEPLOYMENT_ERROR);
