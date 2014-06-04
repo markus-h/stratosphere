@@ -28,6 +28,7 @@ import eu.stratosphere.nephele.io.channels.ChannelID;
 import eu.stratosphere.nephele.ipc.RPC;
 import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.nephele.net.NetUtils;
+import eu.stratosphere.nephele.protocols.IterationInstructionProtocol;
 import eu.stratosphere.nephele.protocols.TaskOperationProtocol;
 import eu.stratosphere.nephele.taskmanager.TaskCancelResult;
 import eu.stratosphere.nephele.taskmanager.TaskKillResult;
@@ -60,6 +61,11 @@ public abstract class AbstractInstance extends NetworkNode {
 	 * Stores the RPC stub object for the instance's task manager.
 	 */
 	private TaskOperationProtocol taskManager = null;
+	
+	/**
+	 * Stores the RPC stub object for iteration handling of task managers.
+	 */
+	private IterationInstructionProtocol iterationInstructionProtocolProxy = null;
 
 	/**
 	 * Constructs an abstract instance object.
@@ -111,6 +117,36 @@ public abstract class AbstractInstance extends NetworkNode {
 		if (this.taskManager != null) {
 			RPC.stopProxy(this.taskManager);
 			this.taskManager = null;
+		}
+	}
+	
+	/**
+	 * Creates or returns the RPC stub object for the instance's task managers' IterationInstructionProtocol
+	 * 
+	 * @return the RPC stub object for the instance's task manager's IterationInstructionProtocol
+	 * @throws IOException
+	 *         thrown if the RPC stub object for the task manager cannot be created
+	 */
+	private IterationInstructionProtocol getIterationInstructionProtocolProxy() throws IOException {
+
+		if (this.iterationInstructionProtocolProxy == null) {
+
+			this.iterationInstructionProtocolProxy = RPC.getProxy(IterationInstructionProtocol.class,
+				new InetSocketAddress(getInstanceConnectionInfo().getAddress(),
+					getInstanceConnectionInfo().getIPCPort()), NetUtils.getSocketFactory());
+		}
+
+		return this.iterationInstructionProtocolProxy;
+	}
+
+	/**
+	 * Destroys and removes the RPC stub object for this instance's task manager's IterationInstructionProtocol
+	 */
+	private void destroyIterationInstructionProtocolProxy() {
+
+		if (this.iterationInstructionProtocolProxy != null) {
+			RPC.stopProxy(this.iterationInstructionProtocolProxy);
+			this.iterationInstructionProtocolProxy = null;
 		}
 	}
 
@@ -293,6 +329,6 @@ public abstract class AbstractInstance extends NetworkNode {
 	public synchronized void destroyProxies() {
 
 		destroyTaskManagerProxy();
-
+		destroyIterationInstructionProtocolProxy();
 	}
 }

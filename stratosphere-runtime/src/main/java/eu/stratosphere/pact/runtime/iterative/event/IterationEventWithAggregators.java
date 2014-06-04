@@ -24,10 +24,11 @@ import java.util.Map;
 
 import eu.stratosphere.api.common.aggregators.Aggregator;
 import eu.stratosphere.core.io.IOReadableWritable;
+import eu.stratosphere.nephele.event.task.AbstractTaskEvent;
 import eu.stratosphere.types.Value;
 import eu.stratosphere.util.InstantiationUtil;
 
-public abstract class IterationEventWithAggregators implements IOReadableWritable {
+public abstract class IterationEventWithAggregators extends AbstractTaskEvent implements IOReadableWritable {
 	
 	protected static final String[] NO_STRINGS = new String[0];
 	protected static final Value[] NO_VALUES = new Value[0];

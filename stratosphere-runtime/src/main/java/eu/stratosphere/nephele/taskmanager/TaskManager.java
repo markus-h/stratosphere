@@ -75,6 +75,7 @@ import eu.stratosphere.nephele.profiling.TaskManagerProfiler;
 import eu.stratosphere.nephele.protocols.AccumulatorProtocol;
 import eu.stratosphere.nephele.protocols.ChannelLookupProtocol;
 import eu.stratosphere.nephele.protocols.InputSplitProviderProtocol;
+import eu.stratosphere.nephele.protocols.IterationInstructionProtocol;
 import eu.stratosphere.nephele.protocols.IterationReportProtocol;
 import eu.stratosphere.nephele.protocols.JobManagerProtocol;
 import eu.stratosphere.nephele.protocols.TaskOperationProtocol;
@@ -96,7 +97,7 @@ import eu.stratosphere.util.StringUtils;
  * as long as the job manager is running on the same local network
  * 
  */
-public class TaskManager implements TaskOperationProtocol {
+public class TaskManager implements TaskOperationProtocol, IterationInstructionProtocol {
 
 	private static final Log LOG = LogFactory.getLog(TaskManager.class);
 
@@ -999,5 +1000,17 @@ public class TaskManager implements TaskOperationProtocol {
 				throw new Exception("Temporary file directory '" + f.getAbsolutePath() + "' is not writable.");
 			}
 		}
+	}
+
+	@Override
+	public void startNextSuperstep() throws IOException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void terminate() throws IOException {
+		// TODO Auto-generated method stub
+		
 	}
 }

@@ -297,11 +297,12 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 					log.info(formatLogString("finishing iteration [" + currentIteration() + "]"));
 				}
 
-				sendEventToSync(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
+				//sendEventToSync(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
 				// Report end of superstep to JobManager
+				TaskConfig taskConfig = new TaskConfig(getTaskConfiguration());
 				synchronized (getEnvironment().getIterationReportProtocolProxy()) {
 					try {
-						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
+						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(getEnvironment().getJobID(), taskConfig.getIterationId(), new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
 					} catch (IOException e) {
 						throw new RuntimeException("Communication with JobManager is broken. Could not send accumulators.", e);
 					}
@@ -394,11 +395,11 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		}
 	}
 
-	private void sendEventToSync(WorkerDoneEvent event) throws IOException, InterruptedException {
-		if (log.isInfoEnabled()) {
-			log.info(formatLogString("sending " + WorkerDoneEvent.class.getSimpleName() + " to sync"));
-		}
-		this.toSync.publishEvent(event);
-	}
+//	private void sendEventToSync(WorkerDoneEvent event) throws IOException, InterruptedException {
+//		if (log.isInfoEnabled()) {
+//			log.info(formatLogString("sending " + WorkerDoneEvent.class.getSimpleName() + " to sync"));
+//		}
+//		this.toSync.publishEvent(event);
+//	}
 
 }

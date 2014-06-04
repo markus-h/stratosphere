@@ -1296,6 +1296,9 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			
 			syncConfig.setConvergenceCriterion(convAggName, convCriterion);
 		}
+		
+		// assign unique id
+		
 	}
 	
 	private void finalizeWorksetIteration(IterationDescriptor descr) {

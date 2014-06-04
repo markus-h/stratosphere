@@ -11,22 +11,26 @@
  * specific language governing permissions and limitations under the License.
  **********************************************************************************************************************/
 
-package eu.stratosphere.nephele.protocols;
+package eu.stratosphere.nephele.jobmanager.iterations;
 
-import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
-import eu.stratosphere.core.protocols.VersionedProtocol;
-import eu.stratosphere.nephele.jobgraph.JobID;
-import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
+import eu.stratosphere.api.common.aggregators.Aggregator;
 
-public interface IterationReportProtocol extends VersionedProtocol {
+/**
+ * Simple class wrapping a map of Aggregators for a single job. Just for better
+ * handling.
+ */
+public class JobAggregators {
 
-	/**
-	 * Report end of superstep (including aggregators) that were collected in a task. Called by Task
-	 * Manager, after the user code was executed but before the task status
-	 * update is reported.
-	 */
-	void reportEndOfSuperstep(JobID jobId, int iterataionId,WorkerDoneEvent iterationEvent)
-			throws IOException;
+	private final Map<String, Aggregator<?>> aggregators = new HashMap<String, Aggregator<?>>();
+
+	public Map<String, Aggregator<?>> getAggregators() {
+		return this.aggregators;
+	}
 	
+	public void addAggregator(String name, Aggregator<?> agg) {
+		this.aggregators.put(name, agg);
+	}
 }

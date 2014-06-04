@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -45,6 +46,11 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 
+import com.google.common.base.Preconditions;
+
+import eu.stratosphere.api.common.aggregators.Aggregator;
+import eu.stratosphere.api.common.aggregators.AggregatorWithName;
+import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
 import eu.stratosphere.configuration.ConfigConstants;
 import eu.stratosphere.configuration.Configuration;
 import eu.stratosphere.configuration.GlobalConfiguration;
@@ -84,6 +90,8 @@ import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.nephele.jobmanager.accumulators.AccumulatorManager;
 import eu.stratosphere.nephele.jobmanager.archive.ArchiveListener;
 import eu.stratosphere.nephele.jobmanager.archive.MemoryArchivist;
+import eu.stratosphere.nephele.jobmanager.iterations.AggregatorManager;
+import eu.stratosphere.nephele.jobmanager.iterations.IterationManager;
 import eu.stratosphere.nephele.jobmanager.scheduler.AbstractScheduler;
 import eu.stratosphere.nephele.jobmanager.scheduler.SchedulingException;
 import eu.stratosphere.nephele.jobmanager.splitassigner.InputSplitManager;
@@ -113,6 +121,10 @@ import eu.stratosphere.nephele.topology.NetworkTopology;
 import eu.stratosphere.nephele.types.IntegerRecord;
 import eu.stratosphere.nephele.util.SerializableArrayList;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
+import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
+import eu.stratosphere.pact.runtime.task.util.TaskConfig;
+import eu.stratosphere.types.Value;
+import eu.stratosphere.util.InstantiationUtil;
 import eu.stratosphere.util.StringUtils;
 
 /**
@@ -147,6 +159,10 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	private final MulticastManager multicastManager;
 	
 	private AccumulatorManager accumulatorManager;
+	
+	private AggregatorManager aggregatorManager;
+	
+	private ArrayList<IterationManager> iterationManager;
 
 	private InstanceManager instanceManager;
 
@@ -530,6 +546,40 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	
 			// Register for updates on the job status
 			eg.registerJobStatusListener(this);
+			
+			// Set up iteration handling
+			for(AbstractJobVertex vertex : job.getAllJobVertices()) {
+				
+				// find one iteration head
+				if(vertex.getInvokableClass().isAssignableFrom(IterationHeadPactTask.class)) {
+					TaskConfig taskConfig = new TaskConfig(vertex.getConfiguration());
+					
+					// instantiate and add aggregators of iteration
+					for (AggregatorWithName<?> aggWithName : taskConfig.getIterationAggregators()) {
+						Aggregator<?> agg = InstantiationUtil.instantiate(aggWithName.getAggregator(), Aggregator.class);
+						this.aggregatorManager.addAggregator(job.getJobID(), aggWithName.getName(), agg);
+					}
+					
+					// instantiate IterationManager
+					IterationManager manager = new IterationManager(job.getJobID(), taskConfig.getIterationId(), taskConfig.getNumberOfEventsUntilInterruptInIterativeGate(0), taskConfig.getNumberOfIterations(), aggregatorManager);
+					
+					// instantiate and add the aggregator convergence criterion
+					if (taskConfig.usesConvergenceCriterion()) {
+						
+						ConvergenceCriterion<Value> convergenceCriterion = null;
+						String convergenceAggregatorName;
+						
+						Class<? extends ConvergenceCriterion<Value>> convClass = taskConfig.getConvergenceCriterion();
+						convergenceCriterion = InstantiationUtil.instantiate(convClass, ConvergenceCriterion.class);
+						convergenceAggregatorName = taskConfig.getConvergenceCriterionAggregatorName();
+						Preconditions.checkNotNull(convergenceAggregatorName);
+						
+						manager.setConvergenceCriterion(convergenceAggregatorName, convergenceCriterion);
+					}
+					
+					this.iterationManager.add(manager);
+				}
+			}
 	
 			// Schedule job
 			if (LOG.isInfoEnabled()) {
@@ -594,6 +644,12 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 			if (LOG.isWarnEnabled()) {
 				LOG.warn(ioe);
 			}
+		}
+		
+		// Remove IterationManager
+		for(int i=0; i < this.iterationManager.size(); i++) {
+			if(this.iterationManager.get(i).getJobId().equals(executionGraph.getJobID()))
+					this.iterationManager.remove(i);
 		}
 	}
 
@@ -1236,9 +1292,16 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	}
 
 	@Override
-	public void reportEndOfSuperstep(WorkerDoneEvent iterationEvent)
+	public void reportEndOfSuperstep(JobID jobId, int iterationId, WorkerDoneEvent workerDoneEvent)
 			throws IOException {
-		// TODO Auto-generated method stub
-		
+		this.getIterationManager(jobId, iterationId).receiveWorkerDoneEvent(workerDoneEvent);
+	}
+	
+	private IterationManager getIterationManager(JobID jobId, int iterationId) {
+		for(IterationManager manager : this.iterationManager) {
+			if(manager.getJobId().equals(jobId) && manager.getIterationId() == iterationId)
+				return manager;
+		}
+		return null;
 	}
 }
