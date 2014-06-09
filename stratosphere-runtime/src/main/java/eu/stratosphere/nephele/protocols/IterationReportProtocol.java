@@ -18,6 +18,7 @@ import java.io.IOException;
 import eu.stratosphere.core.protocols.VersionedProtocol;
 import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
+import eu.stratosphere.types.IntValue;
 
 public interface IterationReportProtocol extends VersionedProtocol {
 
@@ -26,7 +27,7 @@ public interface IterationReportProtocol extends VersionedProtocol {
 	 * Manager, after the user code was executed but before the task status
 	 * update is reported.
 	 */
-	void reportEndOfSuperstep(JobID jobId, int iterataionId,WorkerDoneEvent iterationEvent)
+	void reportEndOfSuperstep(JobID jobId, IntValue iterataionId,WorkerDoneEvent iterationEvent)
 			throws IOException;
 	
 }

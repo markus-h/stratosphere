@@ -946,4 +946,8 @@ public final class ExecutionGroupVertex {
 
 		return this.invokableClass;
 	}
+
+	public CopyOnWriteArrayList<ExecutionVertex> getGroupMembers() {
+		return groupMembers;
+	}
 }

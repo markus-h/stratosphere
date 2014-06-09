@@ -35,6 +35,8 @@ import eu.stratosphere.nephele.taskmanager.TaskKillResult;
 import eu.stratosphere.nephele.taskmanager.TaskSubmissionResult;
 import eu.stratosphere.nephele.topology.NetworkNode;
 import eu.stratosphere.nephele.topology.NetworkTopology;
+import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
+import eu.stratosphere.types.IntValue;
 
 /**
  * An abstract instance represents a resource a {@link eu.stratosphere.nephele.taskmanager.TaskManager} runs on.
@@ -330,5 +332,30 @@ public abstract class AbstractInstance extends NetworkNode {
 
 		destroyTaskManagerProxy();
 		destroyIterationInstructionProtocolProxy();
+	}
+	
+	/**
+	 * Sends a request to terminate the currently running iteration with the id iterationId
+	 * on this instance
+	 * 
+	 * @throws IOException
+	 *         thrown if an error occurs while transmitting the request
+	 */
+	public synchronized void terminateIteration(ExecutionVertexID headVertexId) throws IOException {
+
+		getIterationInstructionProtocolProxy().terminate(headVertexId);
+	}
+
+	
+	/**
+	 * Sends a request to start the next supertstep of the currently running iteration with 
+	 * the id iterationId on this instance
+	 * 
+	 * @throws IOException
+	 *         thrown if an error occurs while transmitting the request
+	 */
+	public synchronized void startNextSuperstep(ExecutionVertexID headVertexId, AllWorkersDoneEvent allWorkersDoneEvent) throws IOException {
+
+		getIterationInstructionProtocolProxy().startNextSuperstep(headVertexId, allWorkersDoneEvent);
 	}
 }

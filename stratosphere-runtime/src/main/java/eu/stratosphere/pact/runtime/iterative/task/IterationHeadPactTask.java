@@ -16,6 +16,7 @@ package eu.stratosphere.pact.runtime.iterative.task;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -47,6 +48,7 @@ import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.pact.runtime.iterative.io.SerializedUpdateBuffer;
 import eu.stratosphere.pact.runtime.task.RegularPactTask;
 import eu.stratosphere.pact.runtime.task.util.TaskConfig;
+import eu.stratosphere.types.IntValue;
 import eu.stratosphere.types.Value;
 import eu.stratosphere.util.Collector;
 import eu.stratosphere.util.MutableObjectIterator;
@@ -92,6 +94,10 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 	private int feedbackDataInput; // workset or bulk partial solution
 
 	private RuntimeAggregatorRegistry aggregatorRegistry;
+	
+	private AtomicBoolean terminationRequested = new AtomicBoolean(false);
+	
+	private AllWorkersDoneEvent lastGlobalState = null;
 
 	// --------------------------------------------------------------------------------------------
 
@@ -114,16 +120,16 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		this.finalOutputCollector = RegularPactTask.getOutputCollector(this, finalOutConfig,
 			this.userCodeClassLoader, this.finalOutputWriters, finalOutConfig.getNumOutputs());
 
-		// sanity check the setup
-		final int writersIntoStepFunction = this.eventualOutputs.size();
-		final int writersIntoFinalResult = this.finalOutputWriters.size();
-		final int syncGateIndex = this.config.getIterationHeadIndexOfSyncOutput();
-
-		if (writersIntoStepFunction + writersIntoFinalResult != syncGateIndex) {
-			throw new Exception("Error: Inconsistent head task setup - wrong mapping of output gates.");
-		}
-		// now, we can instantiate the sync gate
-		this.toSync = new RecordWriter<IOReadableWritable>(this, IOReadableWritable.class);
+//		// sanity check the setup
+//		final int writersIntoStepFunction = this.eventualOutputs.size();
+//		final int writersIntoFinalResult = this.finalOutputWriters.size();
+//		final int syncGateIndex = this.config.getIterationHeadIndexOfSyncOutput();
+//
+//		if (writersIntoStepFunction + writersIntoFinalResult != syncGateIndex) {
+//			throw new Exception("Error: Inconsistent head task setup - wrong mapping of output gates.");
+//		}
+//		// now, we can instantiate the sync gate
+//		this.toSync = new RecordWriter<IOReadableWritable>(this, IOReadableWritable.class);
 	}
 
 	/**
@@ -195,12 +201,12 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		solutionSet.buildTable(solutionSetInput);
 	}
 
-	private SuperstepBarrier initSuperstepBarrier() {
-		SuperstepBarrier barrier = new SuperstepBarrier(userCodeClassLoader);
-		this.toSync.subscribeToEvent(barrier, AllWorkersDoneEvent.class);
-		this.toSync.subscribeToEvent(barrier, TerminationEvent.class);
-		return barrier;
-	}
+//	private SuperstepBarrier initSuperstepBarrier() {
+//		SuperstepBarrier barrier = new SuperstepBarrier(userCodeClassLoader);
+//		//this.toSync.subscribeToEvent(barrier, AllWorkersDoneEvent.class);
+//		//this.toSync.subscribeToEvent(barrier, TerminationEvent.class);
+//		return barrier;
+//	}
 
 	@Override
 	public void run() throws Exception {
@@ -217,7 +223,7 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		try {
 			/* used for receiving the current iteration result from iteration tail */
 			BlockingBackChannel backChannel = initBackChannel();
-			SuperstepBarrier barrier = initSuperstepBarrier();
+			//SuperstepBarrier barrier = initSuperstepBarrier();
 			SolutionSetUpdateBarrier solutionSetUpdateBarrier = null;
 
 			feedbackDataInput = config.getIterationHeadPartialSolutionOrWorksetInputIndex();
@@ -272,7 +278,7 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 					log.info(formatLogString("starting iteration [" + currentIteration() + "]"));
 				}
 
-				barrier.setup();
+				//barrier.setup();
 
 				if (waitForSolutionSetUpdate) {
 					solutionSetUpdateBarrier.setup();
@@ -302,9 +308,9 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				TaskConfig taskConfig = new TaskConfig(getTaskConfiguration());
 				synchronized (getEnvironment().getIterationReportProtocolProxy()) {
 					try {
-						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(getEnvironment().getJobID(), taskConfig.getIterationId(), new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
+						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(getEnvironment().getJobID(), new IntValue(taskConfig.getIterationId()), new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
 					} catch (IOException e) {
-						throw new RuntimeException("Communication with JobManager is broken. Could not send accumulators.", e);
+						throw new RuntimeException("Communication with JobManager is broken. Could not send end of superstep.", e);
 					}
 				}
 				
@@ -312,21 +318,35 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				if (log.isInfoEnabled()) {
 					log.info(formatLogString("waiting for other workers in iteration [" + currentIteration() + "]"));
 				}
-
-				barrier.waitForOtherWorkers();
-
-				if (barrier.terminationSignaled()) {
-					if (log.isInfoEnabled()) {
-						log.info(formatLogString("head received termination request in iteration ["
-							+ currentIteration()
-							+ "]"));
+				
+				// wait for signaling of next action from JobManager
+				synchronized (terminationRequested) {	
+					try {
+						this.terminationRequested.wait();
 					}
+					catch(InterruptedException e) {
+						// intended
+					}
+				}
+				
+				if(this.terminationRequested.get() == true) {
+					if (log.isInfoEnabled()) {
+					log.info(formatLogString("head received termination request in iteration ["
+						+ currentIteration()
+						+ "]"));
+					}
+					
 					requestTermination();
+					
 				} else {
+					if(lastGlobalState == null) {
+						throw new RuntimeException("This should not happen. AllWorkersDoneEvent must be received to continue with the next superstep");
+					}
+					
 					incrementIterationCounter();
 
-					String[] globalAggregateNames = barrier.getAggregatorNames();
-					Value[] globalAggregates = barrier.getAggregates();
+					String[] globalAggregateNames = lastGlobalState.getAggregatorNames();
+					Value[] globalAggregates = lastGlobalState.getAggregates(userCodeClassLoader);
 					aggregatorRegistry.updateGlobalAggregatesAndReset(globalAggregateNames, globalAggregates);
 				}
 			}
@@ -393,6 +413,22 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		for (int outputIndex = 0; outputIndex < this.eventualOutputs.size(); outputIndex++) {
 			this.eventualOutputs.get(outputIndex).sendEndOfSuperstep();
 		}
+	}
+
+	public AtomicBoolean getTerminationRequested() {
+			return terminationRequested;
+	}
+
+	public void setTerminationRequested(boolean terminationRequested) {
+		this.terminationRequested.set(terminationRequested);
+	}
+
+	public AllWorkersDoneEvent getLastGlobalState() {
+		return lastGlobalState;
+	}
+
+	public void setLastGlobalState(AllWorkersDoneEvent lastGlobalState) {
+		this.lastGlobalState = lastGlobalState;
 	}
 
 //	private void sendEventToSync(WorkerDoneEvent event) throws IOException, InterruptedException {

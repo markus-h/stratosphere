@@ -66,7 +66,6 @@ import eu.stratosphere.pact.runtime.iterative.convergence.WorksetEmptyConvergenc
 import eu.stratosphere.pact.runtime.iterative.io.FakeOutputTask;
 import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
 import eu.stratosphere.pact.runtime.iterative.task.IterationIntermediatePactTask;
-import eu.stratosphere.pact.runtime.iterative.task.IterationSynchronizationSinkTask;
 import eu.stratosphere.pact.runtime.iterative.task.IterationTailPactTask;
 import eu.stratosphere.pact.runtime.shipping.ShipStrategyType;
 import eu.stratosphere.pact.runtime.task.CoGroupDriver;
@@ -1158,30 +1157,37 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			throw new CompilerException("Bug: No memory has been assigned to the iteration back channel.");
 		}
 		headConfig.setBackChannelMemory(memForBackChannel);
-		
-		// --------------------------- create the sync task ---------------------------
-		final JobOutputVertex sync = new JobOutputVertex("Sync(" +
-					bulkNode.getNodeName() + ")", this.jobGraph);
-		sync.setOutputClass(IterationSynchronizationSinkTask.class);
-		sync.setNumberOfSubtasks(1);
-		this.auxVertices.add(sync);
-		
-		final TaskConfig syncConfig = new TaskConfig(sync.getConfiguration());
-		syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
 
-		// set the number of iteration / convergence criterion for the sync
+		// set the number of iteration / convergence criterion for the head
 		final int maxNumIterations = bulkNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
 		if (maxNumIterations < 1) {
 			throw new CompilerException("Cannot create bulk iteration with unspecified maximum number of iterations.");
 		}
-		syncConfig.setNumberOfIterations(maxNumIterations);
+		headConfig.setNumberOfIterations(maxNumIterations);
 		
-		// connect the sync task
-		try {
-			headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
-		} catch (JobGraphDefinitionException e) {
-			throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
-		}
+		// --------------------------- create the sync task ---------------------------
+//		final JobOutputVertex sync = new JobOutputVertex("Sync(" +
+//					bulkNode.getNodeName() + ")", this.jobGraph);
+//		sync.setOutputClass(IterationSynchronizationSinkTask.class);
+//		sync.setNumberOfSubtasks(1);
+//		this.auxVertices.add(sync);
+//		
+//		final TaskConfig syncConfig = new TaskConfig(sync.getConfiguration());
+//		syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
+//
+//		// set the number of iteration / convergence criterion for the sync
+//		final int maxNumIterations = bulkNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
+//		if (maxNumIterations < 1) {
+//			throw new CompilerException("Cannot create bulk iteration with unspecified maximum number of iterations.");
+//		}
+//		syncConfig.setNumberOfIterations(maxNumIterations);
+//		
+//		// connect the sync task
+//		try {
+//			headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
+//		} catch (JobGraphDefinitionException e) {
+//			throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
+//		}
 		
 		
 		// ----------------------------- create the iteration tail ------------------------------
@@ -1281,7 +1287,7 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();
 		
 		headConfig.addIterationAggregators(allAggregators);
-		syncConfig.addIterationAggregators(allAggregators);
+		//syncConfig.addIterationAggregators(allAggregators);
 		
 		String convAggName = aggs.getConvergenceCriterionAggregatorName();
 		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
@@ -1294,11 +1300,9 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 				throw new CompilerException("Error: Aggregator convergence criterion set, but aggregator is null.");
 			}
 			
-			syncConfig.setConvergenceCriterion(convAggName, convCriterion);
+			//syncConfig.setConvergenceCriterion(convAggName, convCriterion);
+			headConfig.setConvergenceCriterion(convAggName, convCriterion);
 		}
-		
-		// assign unique id
-		
 	}
 	
 	private void finalizeWorksetIteration(IterationDescriptor descr) {
@@ -1327,32 +1331,39 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			headConfig.setSolutionSetComparator(iterNode.getSolutionSetComparator());
 		}
 		
-		// --------------------------- create the sync task ---------------------------
-		final TaskConfig syncConfig;
-		{
-			final JobOutputVertex sync = new JobOutputVertex("Sync (" +
-						iterNode.getNodeName() + ")", this.jobGraph);
-			sync.setOutputClass(IterationSynchronizationSinkTask.class);
-			sync.setNumberOfSubtasks(1);
-			this.auxVertices.add(sync);
-			
-			syncConfig = new TaskConfig(sync.getConfiguration());
-			syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
-	
-			// set the number of iteration / convergence criterion for the sync
-			final int maxNumIterations = iterNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
-			if (maxNumIterations < 1) {
-				throw new CompilerException("Cannot create workset iteration with unspecified maximum number of iterations.");
-			}
-			syncConfig.setNumberOfIterations(maxNumIterations);
-			
-			// connect the sync task
-			try {
-				headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
-			} catch (JobGraphDefinitionException e) {
-				throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
-			}
+		// set the number of iteration / convergence criterion for the head
+		final int maxNumIterations = iterNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
+		if (maxNumIterations < 1) {
+			throw new CompilerException("Cannot create workset iteration with unspecified maximum number of iterations.");
 		}
+		headConfig.setNumberOfIterations(maxNumIterations);
+		
+		// --------------------------- create the sync task ---------------------------
+//		final TaskConfig syncConfig;
+//		{
+//			final JobOutputVertex sync = new JobOutputVertex("Sync (" +
+//						iterNode.getNodeName() + ")", this.jobGraph);
+//			sync.setOutputClass(IterationSynchronizationSinkTask.class);
+//			sync.setNumberOfSubtasks(1);
+//			this.auxVertices.add(sync);
+//			
+//			syncConfig = new TaskConfig(sync.getConfiguration());
+//			syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
+//	
+//			// set the number of iteration / convergence criterion for the sync
+//			final int maxNumIterations = iterNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
+//			if (maxNumIterations < 1) {
+//				throw new CompilerException("Cannot create workset iteration with unspecified maximum number of iterations.");
+//			}
+//			syncConfig.setNumberOfIterations(maxNumIterations);
+//			
+//			// connect the sync task
+//			try {
+//				headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
+//			} catch (JobGraphDefinitionException e) {
+//				throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
+//			}
+//		}
 		
 		// ----------------------------- create the iteration tails -----------------------------
 		// ----------------------- for next workset and solution set delta-----------------------
@@ -1473,7 +1484,7 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		}
 		
 		headConfig.addIterationAggregators(allAggregators);
-		syncConfig.addIterationAggregators(allAggregators);
+		//syncConfig.addIterationAggregators(allAggregators);
 		
 		String convAggName = aggs.getConvergenceCriterionAggregatorName();
 		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
@@ -1483,8 +1494,9 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		}
 		
 		headConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
-		syncConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
-		syncConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
+		//syncConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
+		//syncConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
+		headConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
 	}
 
 	// -------------------------------------------------------------------------------------

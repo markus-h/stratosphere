@@ -36,11 +36,12 @@ public class AggregatorManager {
 	
 	public void addAggregator(JobID jobID, String name, Aggregator<?> aggregator) {
 		
-		JobAggregators aggregators = this.aggregators.get(jobID);
-		if (aggregators == null) {
-			aggregators = new JobAggregators();
+		JobAggregators jobAggregators = this.aggregators.get(jobID);
+		if (jobAggregators == null) {
+			jobAggregators = new JobAggregators();
+			this.aggregators.put(jobID, jobAggregators);
 		}
-		aggregators.addAggregator(name, aggregator);
+		jobAggregators.addAggregator(name, aggregator);
 		
 		cleanup(jobID);
 	}

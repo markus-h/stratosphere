@@ -16,12 +16,14 @@ package eu.stratosphere.nephele.protocols;
 import java.io.IOException;
 
 import eu.stratosphere.core.protocols.VersionedProtocol;
+import eu.stratosphere.nephele.executiongraph.ExecutionVertexID;
+import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
 
 public interface IterationInstructionProtocol extends VersionedProtocol {
 
-	void startNextSuperstep()
+	void startNextSuperstep(ExecutionVertexID headVertexId, AllWorkersDoneEvent allWorkersDoneEvent)
 			throws IOException;
 
-	void terminate()
+	void terminate(ExecutionVertexID headVertexId)
 			throws IOException;
 }

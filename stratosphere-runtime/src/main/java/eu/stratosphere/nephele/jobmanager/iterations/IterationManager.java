@@ -1,6 +1,9 @@
 package eu.stratosphere.nephele.jobmanager.iterations;
 
 import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -9,9 +12,13 @@ import com.google.common.base.Preconditions;
 
 import eu.stratosphere.api.common.aggregators.Aggregator;
 import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
+import eu.stratosphere.nephele.execution.librarycache.LibraryCacheManager;
+import eu.stratosphere.nephele.executiongraph.ExecutionVertex;
+import eu.stratosphere.nephele.executiongraph.ExecutionVertexID;
+import eu.stratosphere.nephele.instance.AbstractInstance;
 import eu.stratosphere.nephele.jobgraph.JobID;
+import eu.stratosphere.nephele.taskmanager.runtime.ExecutorThreadFactory;
 import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
-import eu.stratosphere.pact.runtime.iterative.event.TerminationEvent;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.types.Value;
 
@@ -41,20 +48,27 @@ public class IterationManager {
 	
 	private String convergenceAggregatorName;
 	
-	private boolean endOfSuperstep;
+	private boolean endOfSuperstep = false;
 	
 	private AggregatorManager aggregatorManager;
 	
-	public IterationManager(JobID jobId, int iterationId, int numberOfEventsUntilEndOfSuperstep, int maxNumberOfIterations, AggregatorManager aggregatorManager) throws IOException {
+	private CopyOnWriteArrayList<ExecutionVertex> executionVertices;
+	
+	private final ExecutorService executorService = Executors.newCachedThreadPool(ExecutorThreadFactory.INSTANCE);
+	
+	public IterationManager(JobID jobId, int iterationId, int numberOfEventsUntilEndOfSuperstep, int maxNumberOfIterations, 
+			AggregatorManager aggregatorManager, CopyOnWriteArrayList<ExecutionVertex> executionVertices) throws IOException {
 		Preconditions.checkArgument(numberOfEventsUntilEndOfSuperstep > 0);
 		this.jobId = jobId;
 		this.iterationId = iterationId;
 		this.numberOfEventsUntilEndOfSuperstep = numberOfEventsUntilEndOfSuperstep;
 		this.maxNumberOfIterations = maxNumberOfIterations;
 		this.aggregatorManager = aggregatorManager;
+		this.executionVertices = executionVertices;
+		this.userCodeClassLoader =  LibraryCacheManager.getClassLoader(jobId);
 	}
 	
-	public void receiveWorkerDoneEvent(WorkerDoneEvent workerDoneEvent) {
+	public synchronized void receiveWorkerDoneEvent(WorkerDoneEvent workerDoneEvent) {
 		
 		if (this.endOfSuperstep) {
 			throw new RuntimeException("Encountered WorderDoneEvent when still in End-of-Superstep status.");
@@ -87,15 +101,66 @@ public class IterationManager {
 				log.info("signaling that all workers are to terminate in iteration ["+ currentIteration + "]");
 			}
 
-			sendToAllWorkers(new TerminationEvent());
+			
+			// Send termination to all workers
+			for(ExecutionVertex ev : this.executionVertices) {
+				
+				final AbstractInstance instance = ev.getAllocatedResource().getInstance();
+				if (instance == null) {
+					log.error("Could not find instance to sent termination request for iteration.");
+					return;
+				}
+				
+				final ExecutionVertexID headVertexId = ev.getID();
+				
+				// send kill request
+				final Runnable runnable = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							instance.terminateIteration(headVertexId);
+						} catch (IOException ioe) {
+							log.error(ioe);
+						}
+					}
+				};
+				executorService.execute(runnable);
+			}
 
 		} else {
 			if (log.isInfoEnabled()) {
 				log.info("signaling that all workers are done in iteration [" + currentIteration+ "]");
 			}
 
-			AllWorkersDoneEvent allWorkersDoneEvent = new AllWorkersDoneEvent(this.aggregatorManager.getJobAggregator(jobId));
-			sendToAllWorkers(allWorkersDoneEvent);
+			resetEndOfSuperstep();
+			
+			final AllWorkersDoneEvent allWorkersDoneEvent = new AllWorkersDoneEvent(this.aggregatorManager.getJobAggregator(jobId));
+
+			// Send start of next superstep to all workers
+			for(ExecutionVertex ev : this.executionVertices) {
+				
+				final AbstractInstance instance = ev.getAllocatedResource().getInstance();
+				if (instance == null) {
+					log.error("Could not find instance to sent termination request for iteration.");
+					return;
+				}
+				
+				final ExecutionVertexID headVertexId = ev.getID();
+				
+				// send kill request
+				final Runnable runnable = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							instance.startNextSuperstep(headVertexId, allWorkersDoneEvent);
+						} catch (IOException ioe) {
+							log.error(ioe);
+						}
+					}
+				};
+				executorService.execute(runnable);
+			}
+			
 			
 			// reset all aggregators
 			for (Aggregator<?> agg : this.aggregatorManager.getJobAggregator(jobId).values()) {

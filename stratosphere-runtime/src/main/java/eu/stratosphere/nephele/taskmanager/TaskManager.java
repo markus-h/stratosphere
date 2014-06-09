@@ -86,8 +86,12 @@ import eu.stratosphere.nephele.taskmanager.bytebuffered.ByteBufferedChannelManag
 import eu.stratosphere.nephele.taskmanager.bytebuffered.InsufficientResourcesException;
 import eu.stratosphere.nephele.taskmanager.runtime.ExecutorThreadFactory;
 import eu.stratosphere.nephele.taskmanager.runtime.RuntimeTask;
+import eu.stratosphere.nephele.template.AbstractInvokable;
 import eu.stratosphere.nephele.util.SerializableArrayList;
 import eu.stratosphere.pact.runtime.cache.FileCache;
+import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
+import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
+import eu.stratosphere.types.IntValue;
 import eu.stratosphere.util.StringUtils;
 
 /**
@@ -260,8 +264,8 @@ public class TaskManager implements TaskOperationProtocol, IterationInstructionP
 		try {
 			this.iterationReportProtocolProxy = RPC.getProxy(IterationReportProtocol.class, jobManagerAddress, NetUtils.getSocketFactory());
 		} catch (IOException e) {
-			LOG.fatal("Failed to initialize accumulator protocol: " + e.getMessage(), e);
-			throw new Exception("Failed to initialize accumulator protocol: " + e.getMessage(), e);
+			LOG.fatal("Failed to initialize iteration report protocol: " + e.getMessage(), e);
+			throw new Exception("Failed to initialize iteration report protocol: " + e.getMessage(), e);
 		}
 
 		// Load profiler if it should be used
@@ -895,6 +899,9 @@ public class TaskManager implements TaskOperationProtocol, IterationInstructionP
 
 		// Stop RPC proxy for accumulator reports
 		RPC.stopProxy(this.accumulatorProtocolProxy);
+		
+		// Stop RPC proxy for iteration reports
+		RPC.stopProxy(this.iterationReportProtocolProxy);
 
 		// Shut down the own RPC server
 		this.taskManagerServer.stop();
@@ -1003,14 +1010,41 @@ public class TaskManager implements TaskOperationProtocol, IterationInstructionP
 	}
 
 	@Override
-	public void startNextSuperstep() throws IOException {
-		// TODO Auto-generated method stub
+	public void startNextSuperstep(ExecutionVertexID headVertexId,
+			AllWorkersDoneEvent allWorkersDoneEvent) throws IOException {
 		
+		final Task task = this.runningTasks.get(headVertexId);
+		
+		if (task == null) {
+			throw new RuntimeException("Could not find head vertex to start the next superstep. Wrong ID?");
+		}
+		
+		final RuntimeEnvironment environment = (RuntimeEnvironment) task.getEnvironment();
+		final IterationHeadPactTask<?, ?, ?, ?> headTask = (IterationHeadPactTask<?, ?, ?, ?>) environment.getInvokable();
+		headTask.setLastGlobalState(allWorkersDoneEvent);
+		headTask.setTerminationRequested(false);
+		AtomicBoolean terminationRequested = headTask.getTerminationRequested();
+		synchronized (terminationRequested) {
+			terminationRequested.notify();
+		}
 	}
 
 	@Override
-	public void terminate() throws IOException {
-		// TODO Auto-generated method stub
+	public void terminate(ExecutionVertexID headVertexId) throws IOException {
+
+		final Task task = this.runningTasks.get(headVertexId);
 		
+		if (task == null) {
+			throw new RuntimeException("Could not find head vertex to start the next superstep. Wrong ID?");
+		}
+		
+		final RuntimeEnvironment environment = (RuntimeEnvironment) task.getEnvironment();
+		final IterationHeadPactTask<?, ?, ?, ?> headTask = (IterationHeadPactTask<?, ?, ?, ?>) environment.getInvokable();
+		headTask.setLastGlobalState(null);
+		headTask.setTerminationRequested(true);
+		AtomicBoolean terminationRequested = headTask.getTerminationRequested();
+		synchronized (terminationRequested) {
+			terminationRequested.notify();
+		}
 	}
 }

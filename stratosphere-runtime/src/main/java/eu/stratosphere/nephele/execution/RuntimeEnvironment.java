@@ -242,6 +242,7 @@ public class RuntimeEnvironment implements Environment, Runnable {
 		this.ioManager = ioManager;
 		this.inputSplitProvider = inputSplitProvider;
 		this.accumulatorProtocolProxy = accumulatorProtocolProxy;
+		this.iterationReportProtocolProxy = iterationReportProtocolProxy;
 		this.cacheCopyTasks = cpTasks;
 
 		this.invokable = this.invokableClass.newInstance();

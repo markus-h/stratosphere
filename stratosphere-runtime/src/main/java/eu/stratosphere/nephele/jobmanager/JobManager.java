@@ -123,6 +123,7 @@ import eu.stratosphere.nephele.util.SerializableArrayList;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
 import eu.stratosphere.pact.runtime.task.util.TaskConfig;
+import eu.stratosphere.types.IntValue;
 import eu.stratosphere.types.Value;
 import eu.stratosphere.util.InstantiationUtil;
 import eu.stratosphere.util.StringUtils;
@@ -219,6 +220,12 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		// accumulator results.
 		this.accumulatorManager = new AccumulatorManager(Math.min(1, archived_items));
 
+		// Create the aggregator manager, similiar to the accumulator manager
+		this.aggregatorManager = new AggregatorManager(Math.min(1, archived_items));
+		
+		// Create the list for storage of all running iterations
+		this.iterationManager = new ArrayList<IterationManager>();
+		
 		// Load the input split manager
 		this.inputSplitManager = new InputSplitManager();
 
@@ -561,7 +568,12 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 					}
 					
 					// instantiate IterationManager
-					IterationManager manager = new IterationManager(job.getJobID(), taskConfig.getIterationId(), taskConfig.getNumberOfEventsUntilInterruptInIterativeGate(0), taskConfig.getNumberOfIterations(), aggregatorManager);
+					IterationManager manager = new IterationManager(job.getJobID(), 
+							taskConfig.getIterationId(),
+							vertex.getNumberOfSubtasks(), 
+							taskConfig.getNumberOfIterations(), 
+							aggregatorManager,
+							eg.getGroupVertexByJobVertexID(vertex.getID()).getGroupMembers());
 					
 					// instantiate and add the aggregator convergence criterion
 					if (taskConfig.usesConvergenceCriterion()) {
@@ -1292,9 +1304,9 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	}
 
 	@Override
-	public void reportEndOfSuperstep(JobID jobId, int iterationId, WorkerDoneEvent workerDoneEvent)
+	public void reportEndOfSuperstep(JobID jobId, IntValue iterationId, WorkerDoneEvent workerDoneEvent)
 			throws IOException {
-		this.getIterationManager(jobId, iterationId).receiveWorkerDoneEvent(workerDoneEvent);
+		this.getIterationManager(jobId, iterationId.getValue()).receiveWorkerDoneEvent(workerDoneEvent);
 	}
 	
 	private IterationManager getIterationManager(JobID jobId, int iterationId) {
