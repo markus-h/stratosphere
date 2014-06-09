@@ -558,7 +558,7 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 			for(AbstractJobVertex vertex : job.getAllJobVertices()) {
 				
 				// find one iteration head
-				if(vertex.getInvokableClass().isAssignableFrom(IterationHeadPactTask.class)) {
+				if(IterationHeadPactTask.class.isAssignableFrom(vertex.getInvokableClass())) {
 					TaskConfig taskConfig = new TaskConfig(vertex.getConfiguration());
 					
 					// instantiate and add aggregators of iteration
