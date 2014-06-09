@@ -1147,11 +1147,8 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		final TaskConfig headConfig = new TaskConfig(headVertex.getConfiguration());
 		final TaskConfig headFinalOutputConfig = descr.getHeadFinalResultConfig();
 		
-		// ------------ finalize the head config with the final outputs and the sync gate ------------
-		final int numStepFunctionOuts = headConfig.getNumOutputs();
-		final int numFinalOuts = headFinalOutputConfig.getNumOutputs();
+		// ------------ finalize the head config with the final outputs ------------
 		headConfig.setIterationHeadFinalOutputConfig(headFinalOutputConfig);
-		headConfig.setIterationHeadIndexOfSyncOutput(numStepFunctionOuts + numFinalOuts);
 		final long memForBackChannel = bulkNode.getMemoryPerSubTask();
 		if (memForBackChannel <= 0) {
 			throw new CompilerException("Bug: No memory has been assigned to the iteration back channel.");
@@ -1164,31 +1161,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			throw new CompilerException("Cannot create bulk iteration with unspecified maximum number of iterations.");
 		}
 		headConfig.setNumberOfIterations(maxNumIterations);
-		
-		// --------------------------- create the sync task ---------------------------
-//		final JobOutputVertex sync = new JobOutputVertex("Sync(" +
-//					bulkNode.getNodeName() + ")", this.jobGraph);
-//		sync.setOutputClass(IterationSynchronizationSinkTask.class);
-//		sync.setNumberOfSubtasks(1);
-//		this.auxVertices.add(sync);
-//		
-//		final TaskConfig syncConfig = new TaskConfig(sync.getConfiguration());
-//		syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
-//
-//		// set the number of iteration / convergence criterion for the sync
-//		final int maxNumIterations = bulkNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
-//		if (maxNumIterations < 1) {
-//			throw new CompilerException("Cannot create bulk iteration with unspecified maximum number of iterations.");
-//		}
-//		syncConfig.setNumberOfIterations(maxNumIterations);
-//		
-//		// connect the sync task
-//		try {
-//			headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
-//		} catch (JobGraphDefinitionException e) {
-//			throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
-//		}
-		
 		
 		// ----------------------------- create the iteration tail ------------------------------
 		
@@ -1287,7 +1259,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();
 		
 		headConfig.addIterationAggregators(allAggregators);
-		//syncConfig.addIterationAggregators(allAggregators);
 		
 		String convAggName = aggs.getConvergenceCriterionAggregatorName();
 		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
@@ -1300,7 +1271,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 				throw new CompilerException("Error: Aggregator convergence criterion set, but aggregator is null.");
 			}
 			
-			//syncConfig.setConvergenceCriterion(convAggName, convCriterion);
 			headConfig.setConvergenceCriterion(convAggName, convCriterion);
 		}
 	}
@@ -1311,12 +1281,9 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		final TaskConfig headConfig = new TaskConfig(headVertex.getConfiguration());
 		final TaskConfig headFinalOutputConfig = descr.getHeadFinalResultConfig();
 		
-		// ------------ finalize the head config with the final outputs and the sync gate ------------
+		// ------------ finalize the head config with the final outputs ------------
 		{
-			final int numStepFunctionOuts = headConfig.getNumOutputs();
-			final int numFinalOuts = headFinalOutputConfig.getNumOutputs();
 			headConfig.setIterationHeadFinalOutputConfig(headFinalOutputConfig);
-			headConfig.setIterationHeadIndexOfSyncOutput(numStepFunctionOuts + numFinalOuts);
 			final long mem = iterNode.getMemoryPerSubTask();
 			if (mem <= 0) {
 				throw new CompilerException("Bug: No memory has been assigned to the workset iteration.");
@@ -1337,33 +1304,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			throw new CompilerException("Cannot create workset iteration with unspecified maximum number of iterations.");
 		}
 		headConfig.setNumberOfIterations(maxNumIterations);
-		
-		// --------------------------- create the sync task ---------------------------
-//		final TaskConfig syncConfig;
-//		{
-//			final JobOutputVertex sync = new JobOutputVertex("Sync (" +
-//						iterNode.getNodeName() + ")", this.jobGraph);
-//			sync.setOutputClass(IterationSynchronizationSinkTask.class);
-//			sync.setNumberOfSubtasks(1);
-//			this.auxVertices.add(sync);
-//			
-//			syncConfig = new TaskConfig(sync.getConfiguration());
-//			syncConfig.setGateIterativeWithNumberOfEventsUntilInterrupt(0, headVertex.getNumberOfSubtasks());
-//	
-//			// set the number of iteration / convergence criterion for the sync
-//			final int maxNumIterations = iterNode.getIterationNode().getIterationContract().getMaximumNumberOfIterations();
-//			if (maxNumIterations < 1) {
-//				throw new CompilerException("Cannot create workset iteration with unspecified maximum number of iterations.");
-//			}
-//			syncConfig.setNumberOfIterations(maxNumIterations);
-//			
-//			// connect the sync task
-//			try {
-//				headVertex.connectTo(sync, ChannelType.NETWORK, DistributionPattern.POINTWISE);
-//			} catch (JobGraphDefinitionException e) {
-//				throw new CompilerException("Bug: Cannot connect head vertex to sync task.");
-//			}
-//		}
 		
 		// ----------------------------- create the iteration tails -----------------------------
 		// ----------------------- for next workset and solution set delta-----------------------
@@ -1484,7 +1424,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		}
 		
 		headConfig.addIterationAggregators(allAggregators);
-		//syncConfig.addIterationAggregators(allAggregators);
 		
 		String convAggName = aggs.getConvergenceCriterionAggregatorName();
 		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
@@ -1494,8 +1433,6 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		}
 		
 		headConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
-		//syncConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
-		//syncConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
 		headConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
 	}
 

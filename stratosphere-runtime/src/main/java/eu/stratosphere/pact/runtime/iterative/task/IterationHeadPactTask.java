@@ -119,17 +119,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		final TaskConfig finalOutConfig = this.config.getIterationHeadFinalOutputConfig();
 		this.finalOutputCollector = RegularPactTask.getOutputCollector(this, finalOutConfig,
 			this.userCodeClassLoader, this.finalOutputWriters, finalOutConfig.getNumOutputs());
-
-//		// sanity check the setup
-//		final int writersIntoStepFunction = this.eventualOutputs.size();
-//		final int writersIntoFinalResult = this.finalOutputWriters.size();
-//		final int syncGateIndex = this.config.getIterationHeadIndexOfSyncOutput();
-//
-//		if (writersIntoStepFunction + writersIntoFinalResult != syncGateIndex) {
-//			throw new Exception("Error: Inconsistent head task setup - wrong mapping of output gates.");
-//		}
-//		// now, we can instantiate the sync gate
-//		this.toSync = new RecordWriter<IOReadableWritable>(this, IOReadableWritable.class);
 	}
 
 	/**
@@ -201,13 +190,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		solutionSet.buildTable(solutionSetInput);
 	}
 
-//	private SuperstepBarrier initSuperstepBarrier() {
-//		SuperstepBarrier barrier = new SuperstepBarrier(userCodeClassLoader);
-//		//this.toSync.subscribeToEvent(barrier, AllWorkersDoneEvent.class);
-//		//this.toSync.subscribeToEvent(barrier, TerminationEvent.class);
-//		return barrier;
-//	}
-
 	@Override
 	public void run() throws Exception {
 
@@ -223,7 +205,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 		try {
 			/* used for receiving the current iteration result from iteration tail */
 			BlockingBackChannel backChannel = initBackChannel();
-			//SuperstepBarrier barrier = initSuperstepBarrier();
 			SolutionSetUpdateBarrier solutionSetUpdateBarrier = null;
 
 			feedbackDataInput = config.getIterationHeadPartialSolutionOrWorksetInputIndex();
@@ -236,7 +217,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				solutionTypeSerializer = solutionTypeSerializerFactory;
 
 				// setup the index for the solution set
-				//solutionSet = initHashTable();
 				solutionSet = initCompactingHashTable();
 
 				// read the initial solution set
@@ -278,8 +258,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 					log.info(formatLogString("starting iteration [" + currentIteration() + "]"));
 				}
 
-				//barrier.setup();
-
 				if (waitForSolutionSetUpdate) {
 					solutionSetUpdateBarrier.setup();
 				}
@@ -303,7 +281,6 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 					log.info(formatLogString("finishing iteration [" + currentIteration() + "]"));
 				}
 
-				//sendEventToSync(new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
 				// Report end of superstep to JobManager
 				TaskConfig taskConfig = new TaskConfig(getTaskConfiguration());
 				synchronized (getEnvironment().getIterationReportProtocolProxy()) {

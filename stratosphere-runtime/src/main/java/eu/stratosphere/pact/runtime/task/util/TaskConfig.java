@@ -823,21 +823,6 @@ public class TaskConfig {
 		return this.config.getBoolean(ITERATION_WORKSET_MARKER, false);
 	}
 	
-	public void setIterationHeadIndexOfSyncOutput(int outputIndex) {
-		if (outputIndex < 0) {
-			throw new IllegalArgumentException();
-		}
-		this.config.setInteger(ITERATION_HEAD_SYNC_OUT_INDEX, outputIndex);
-	}
-	
-	public int getIterationHeadIndexOfSyncOutput() {
-		int outputIndex = this.config.getInteger(ITERATION_HEAD_SYNC_OUT_INDEX, -1);
-		if (outputIndex < 0) {
-			throw new IllegalArgumentException();
-		}
-		return outputIndex;
-	}
-	
 	public void setIterationHeadFinalOutputConfig(TaskConfig conf) {
 		this.config.addAll(conf.config, ITERATION_HEAD_FINAL_OUT_CONFIG_PREFIX);
 	}

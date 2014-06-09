@@ -262,9 +262,6 @@ public class ConnectedComponentsNepheleITCase extends RecordAPITestBase {
 			headFinalOutConfig.addOutputShipStrategy(ShipStrategyType.FORWARD);
 			headConfig.setIterationHeadFinalOutputConfig(headFinalOutConfig);
 
-			// the sync
-			headConfig.setIterationHeadIndexOfSyncOutput(2);
-
 			// the driver
 			headConfig.setDriver(BuildSecondCachedMatchDriver.class);
 			headConfig.setDriverStrategy(DriverStrategy.HYBRIDHASH_BUILD_SECOND);

@@ -19,11 +19,23 @@ import eu.stratosphere.core.protocols.VersionedProtocol;
 import eu.stratosphere.nephele.executiongraph.ExecutionVertexID;
 import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
 
+/**
+ * The iteration instruction protocol is implemented by the task manager. The JobManager can
+ * use it to request the start of the next superstep or to request termination of
+ * an iteration.
+ */
 public interface IterationInstructionProtocol extends VersionedProtocol {
 
+	/**
+	 * Requests the start of the next superstep. It also contains the latest global aggregators inside
+	 * of the AllWorkersDoneEvent
+	 */
 	void startNextSuperstep(ExecutionVertexID headVertexId, AllWorkersDoneEvent allWorkersDoneEvent)
 			throws IOException;
 
+	/**
+	 * Requests the termination of an iteration head
+	 */
 	void terminate(ExecutionVertexID headVertexId)
 			throws IOException;
 }

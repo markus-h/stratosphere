@@ -1,3 +1,17 @@
+/***********************************************************************************************************************
+ *
+ * Copyright (C) 2010-2013 by the Stratosphere project (http://stratosphere.eu)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ *
+ **********************************************************************************************************************/
 package eu.stratosphere.nephele.jobmanager.iterations;
 
 import java.io.IOException;
@@ -23,7 +37,8 @@ import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.types.Value;
 
 /**
- * Manages the supersteps of one iteration
+ * Manages the supersteps of one iteration. The JobManager is holding one IterationManager for every iteration that is 
+ * currently running.
  *
  */
 public class IterationManager {
@@ -34,13 +49,13 @@ public class IterationManager {
 	
 	private int iterationId;
 	
-	private int workerDoneEventCounter = 0;
-	
 	int numberOfEventsUntilEndOfSuperstep;
 	
 	int maxNumberOfIterations;
 	
 	int currentIteration = 0;
+	
+	private int workerDoneEventCounter = 0;
 	
 	private ClassLoader userCodeClassLoader;
 	
@@ -68,14 +83,19 @@ public class IterationManager {
 		this.userCodeClassLoader =  LibraryCacheManager.getClassLoader(jobId);
 	}
 	
+	/**
+	 * Is called once the JobManager receives a WorkerDoneEvent by RPC call from one node
+	 */
 	public synchronized void receiveWorkerDoneEvent(WorkerDoneEvent workerDoneEvent) {
 		
+		// sanity check
 		if (this.endOfSuperstep) {
 			throw new RuntimeException("Encountered WorderDoneEvent when still in End-of-Superstep status.");
 		}
 		
 		workerDoneEventCounter++;
 		
+		// process aggregators
 		String[] aggNames = workerDoneEvent.getAggregatorNames();
 		Value[] aggregates = workerDoneEvent.getAggregates(userCodeClassLoader);
 
@@ -85,13 +105,18 @@ public class IterationManager {
 		
 		this.aggregatorManager.processIncomingAggregators(this.jobId, aggNames, aggregates);
 
+		// if all workers have sent their WorkerDoneEvent -> end of superstep
 		if (workerDoneEventCounter % numberOfEventsUntilEndOfSuperstep == 0) {
 			endOfSuperstep = true;
 			handleEndOfSuperstep();
 		}
 	}
 	
-	public void handleEndOfSuperstep() {
+	/**
+	 * Handles the end of one superstep. If convergence is reached it sends a termination request to all connected workers.
+	 * If not it initializes the next superstep by sending an AllWorkersDoneEvent (with aggregators) to all workers.
+	 */
+	private void handleEndOfSuperstep() {
 		if (log.isInfoEnabled()) {
 			log.info("finishing iteration [" + currentIteration + "]");
 		}
@@ -132,6 +157,7 @@ public class IterationManager {
 				log.info("signaling that all workers are done in iteration [" + currentIteration+ "]");
 			}
 
+			// important for sanity checking
 			resetEndOfSuperstep();
 			
 			final AllWorkersDoneEvent allWorkersDoneEvent = new AllWorkersDoneEvent(this.aggregatorManager.getJobAggregator(jobId));
@@ -161,7 +187,6 @@ public class IterationManager {
 				executorService.execute(runnable);
 			}
 			
-			
 			// reset all aggregators
 			for (Aggregator<?> agg : this.aggregatorManager.getJobAggregator(jobId).values()) {
 				agg.reset();
@@ -184,6 +209,9 @@ public class IterationManager {
 		this.convergenceCriterion = convergenceCriterion;
 	}
 	
+	/**
+	 * Checks if either we have reached maxNumberOfIterations or if a associated ConvergenceCriterion is converged
+	 */
 	private boolean checkForConvergence() {
 		if (maxNumberOfIterations == currentIteration) {
 			if (log.isInfoEnabled()) {

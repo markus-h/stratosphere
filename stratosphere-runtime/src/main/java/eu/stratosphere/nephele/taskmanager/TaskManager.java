@@ -1019,10 +1019,15 @@ public class TaskManager implements TaskOperationProtocol, IterationInstructionP
 			throw new RuntimeException("Could not find head vertex to start the next superstep. Wrong ID?");
 		}
 		
+		// get the head task
 		final RuntimeEnvironment environment = (RuntimeEnvironment) task.getEnvironment();
 		final IterationHeadPactTask<?, ?, ?, ?> headTask = (IterationHeadPactTask<?, ?, ?, ?>) environment.getInvokable();
+		
+		// update its state
 		headTask.setLastGlobalState(allWorkersDoneEvent);
 		headTask.setTerminationRequested(false);
+		
+		// notify thread to continue
 		AtomicBoolean terminationRequested = headTask.getTerminationRequested();
 		synchronized (terminationRequested) {
 			terminationRequested.notify();
@@ -1038,10 +1043,15 @@ public class TaskManager implements TaskOperationProtocol, IterationInstructionP
 			throw new RuntimeException("Could not find head vertex to start the next superstep. Wrong ID?");
 		}
 		
+		// get the head task
 		final RuntimeEnvironment environment = (RuntimeEnvironment) task.getEnvironment();
 		final IterationHeadPactTask<?, ?, ?, ?> headTask = (IterationHeadPactTask<?, ?, ?, ?>) environment.getInvokable();
+		
+		// update its state
 		headTask.setLastGlobalState(null);
 		headTask.setTerminationRequested(true);
+		
+		// notify thread to continue
 		AtomicBoolean terminationRequested = headTask.getTerminationRequested();
 		synchronized (terminationRequested) {
 			terminationRequested.notify();

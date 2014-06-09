@@ -20,11 +20,15 @@ import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.types.IntValue;
 
+/**
+ * The iteration report protocol is implemented by the job manager. Task managers can
+ * use it to report the end of a superstep of an iteration to the job manager.
+ */
 public interface IterationReportProtocol extends VersionedProtocol {
 
 	/**
-	 * Report end of superstep (including aggregators) that were collected in a task. Called by Task
-	 * Manager, after the user code was executed but before the task status
+	 * Report end of superstep (including aggregators) that were collected in a task. 
+	 * Called by Task Manager, after the user code was executed but before the task status
 	 * update is reported.
 	 */
 	void reportEndOfSuperstep(JobID jobId, IntValue iterataionId,WorkerDoneEvent iterationEvent)

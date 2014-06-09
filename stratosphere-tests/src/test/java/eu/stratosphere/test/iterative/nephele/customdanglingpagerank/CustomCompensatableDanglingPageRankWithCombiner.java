@@ -179,7 +179,6 @@ public class CustomCompensatableDanglingPageRankWithCombiner {
 		headConfig.setIterationHeadFinalOutputConfig(headFinalOutConfig);
 		
 		// the sync
-		headConfig.setIterationHeadIndexOfSyncOutput(3);
 		headConfig.setNumberOfIterations(numIterations);
 		
 		// the driver 

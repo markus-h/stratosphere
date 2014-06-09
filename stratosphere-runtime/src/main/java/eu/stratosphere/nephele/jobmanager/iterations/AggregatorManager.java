@@ -22,11 +22,22 @@ import eu.stratosphere.api.common.aggregators.Aggregator;
 import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.types.Value;
 
+/**
+ * This class manages the aggregators for different jobs. Either the jobs are
+ * running and new aggregator results have to be merged in, or the jobs are no
+ * longer running and the results shall be still available for the client or the
+ * web interface. Aggregators for older jobs are automatically removed when new
+ * arrive, based on a maximum number of entries.
+ * 
+ * All functions are thread-safe and thus can be called directly from
+ * JobManager.
+ */
 public class AggregatorManager {
 
 	// Map of aggregators belonging to recently started jobs
 	private final Map<JobID, JobAggregators> aggregators = new ConcurrentHashMap<JobID, JobAggregators>();
 
+	// list used for cleanup of oldest entries
 	private final LinkedList<JobID> lru = new LinkedList<JobID>();
 	private int maxEntries;
 
@@ -34,6 +45,9 @@ public class AggregatorManager {
 		this.maxEntries = maxEntries;
 	}
 	
+	/**
+	 * Adds an Aggregator that should be managed by the JobManager
+	 */
 	public void addAggregator(JobID jobID, String name, Aggregator<?> aggregator) {
 		
 		JobAggregators jobAggregators = this.aggregators.get(jobID);
