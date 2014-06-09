@@ -86,12 +86,10 @@ import eu.stratosphere.nephele.taskmanager.bytebuffered.ByteBufferedChannelManag
 import eu.stratosphere.nephele.taskmanager.bytebuffered.InsufficientResourcesException;
 import eu.stratosphere.nephele.taskmanager.runtime.ExecutorThreadFactory;
 import eu.stratosphere.nephele.taskmanager.runtime.RuntimeTask;
-import eu.stratosphere.nephele.template.AbstractInvokable;
 import eu.stratosphere.nephele.util.SerializableArrayList;
 import eu.stratosphere.pact.runtime.cache.FileCache;
 import eu.stratosphere.pact.runtime.iterative.event.AllWorkersDoneEvent;
 import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
-import eu.stratosphere.types.IntValue;
 import eu.stratosphere.util.StringUtils;
 
 /**

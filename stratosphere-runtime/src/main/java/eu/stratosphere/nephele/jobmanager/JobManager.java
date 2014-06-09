@@ -660,8 +660,9 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		
 		// Remove IterationManager
 		for(int i=0; i < this.iterationManager.size(); i++) {
-			if(this.iterationManager.get(i).getJobId().equals(executionGraph.getJobID()))
+			if(this.iterationManager.get(i).getJobId().equals(executionGraph.getJobID())) {
 					this.iterationManager.remove(i);
+			}
 		}
 	}
 
@@ -1311,8 +1312,9 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	
 	private IterationManager getIterationManager(JobID jobId, int iterationId) {
 		for(IterationManager manager : this.iterationManager) {
-			if(manager.getJobId().equals(jobId) && manager.getIterationId() == iterationId)
+			if(manager.getJobId().equals(jobId) && manager.getIterationId() == iterationId) {
 				return manager;
+			}
 		}
 		return null;
 	}
