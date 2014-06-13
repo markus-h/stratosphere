@@ -17,11 +17,16 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 
+import eu.stratosphere.nephele.jobmanager.iterations.IterationManager;
 import eu.stratosphere.test.util.RecordAPITestBase;
+
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+
+import com.esotericsoftware.minlog.Log;
+import com.sun.org.apache.commons.logging.LogFactory;
 
 import eu.stratosphere.api.common.Plan;
 import eu.stratosphere.api.common.accumulators.IntCounter;

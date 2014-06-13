@@ -16,9 +16,7 @@ package eu.stratosphere.nephele.protocols;
 import java.io.IOException;
 
 import eu.stratosphere.core.protocols.VersionedProtocol;
-import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
-import eu.stratosphere.types.IntValue;
 
 /**
  * The iteration report protocol is implemented by the job manager. Task managers can
@@ -31,7 +29,7 @@ public interface IterationReportProtocol extends VersionedProtocol {
 	 * Called by Task Manager, after the user code was executed but before the task status
 	 * update is reported.
 	 */
-	void reportEndOfSuperstep(JobID jobId, IntValue iterataionId,WorkerDoneEvent iterationEvent)
+	void reportEndOfSuperstep(WorkerDoneEvent workerDoneEvent)
 			throws IOException;
 	
 }

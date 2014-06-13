@@ -13,15 +13,15 @@
 
 package eu.stratosphere.pact.runtime.iterative.concurrent;
 
-import eu.stratosphere.pact.runtime.iterative.task.RuntimeAggregatorRegistry;
+import eu.stratosphere.pact.runtime.iterative.task.RuntimeAccumulatorRegistry;
 
-public class IterationAggregatorBroker extends Broker<RuntimeAggregatorRegistry> {
+public class IterationAccumulatorBroker extends Broker<RuntimeAccumulatorRegistry> {
 	
 	/** single instance */
-	private static final IterationAggregatorBroker INSTANCE = new IterationAggregatorBroker();
+	private static final IterationAccumulatorBroker INSTANCE = new IterationAccumulatorBroker();
 
 	/** retrieve singleton instance */
-	public static IterationAggregatorBroker instance() {
+	public static IterationAccumulatorBroker instance() {
 		return INSTANCE;
 	}
 }

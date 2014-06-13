@@ -26,7 +26,7 @@ public class WorksetEmptyConvergenceCriterion implements ConvergenceCriterion<Lo
 
 	private static final Log log = LogFactory.getLog(WorksetEmptyConvergenceCriterion.class);
 	
-	public static final String AGGREGATOR_NAME = "pact.runtime.workset-empty-aggregator";
+	public static final String ACCUMULATOR_NAME = "pact.runtime.workset-empty-accumulator";
 
 	@Override
 	public boolean isConverged(int iteration, LongValue value) {

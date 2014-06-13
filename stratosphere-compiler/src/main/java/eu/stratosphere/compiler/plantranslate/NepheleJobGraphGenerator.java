@@ -25,10 +25,7 @@ import java.util.Map.Entry;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import eu.stratosphere.api.common.aggregators.AggregatorRegistry;
-import eu.stratosphere.api.common.aggregators.AggregatorWithName;
 import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
-import eu.stratosphere.api.common.aggregators.LongSumAggregator;
 import eu.stratosphere.api.common.cache.DistributedCache;
 import eu.stratosphere.api.common.distributions.DataDistribution;
 import eu.stratosphere.api.common.typeutils.TypeSerializerFactory;
@@ -1254,24 +1251,20 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 			headConfig.setWaitForSolutionSetUpdate();
 		}
 		
-		// ------------------- register the aggregators -------------------
-		AggregatorRegistry aggs = bulkNode.getIterationNode().getIterationContract().getAggregators();
-		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();
+		// ------------------- register the convergence criterion -------------------
 		
-		headConfig.addIterationAggregators(allAggregators);
+		String convAccName = bulkNode.getIterationNode().getIterationContract().getConvergenceCriterionAccumulatorName();
+		Class<? extends ConvergenceCriterion<?>> convCriterion = bulkNode.getIterationNode().getIterationContract().getConvergenceCriterion();
 		
-		String convAggName = aggs.getConvergenceCriterionAggregatorName();
-		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
-		
-		if (convCriterion != null || convAggName != null) {
+		if (convCriterion != null || convAccName != null) {
 			if (convCriterion == null) {
 				throw new CompilerException("Error: Convergence criterion aggregator set, but criterion is null.");
 			}
-			if (convAggName == null) {
+			if (convAccName == null) {
 				throw new CompilerException("Error: Aggregator convergence criterion set, but aggregator is null.");
 			}
 			
-			headConfig.setConvergenceCriterion(convAggName, convCriterion);
+			headConfig.setConvergenceCriterion(convAccName, convCriterion);
 		}
 	}
 	
@@ -1413,27 +1406,27 @@ public class NepheleJobGraphGenerator implements Visitor<PlanNode> {
 		}
 		
 		// ------------------- register the aggregators -------------------
-		AggregatorRegistry aggs = iterNode.getIterationNode().getIterationContract().getAggregators();
-		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();
+//		AggregatorRegistry aggs = iterNode.getIterationNode().getIterationContract().getAggregators();
+//		Collection<AggregatorWithName<?>> allAggregators = aggs.getAllRegisteredAggregators();
+//		
+//		for (AggregatorWithName<?> agg : allAggregators) {
+//			if (agg.getName().equals(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME)) {
+//				throw new CompilerException("User defined aggregator used the same name as built-in workset " +
+//						"termination check aggregator: " + WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME);
+//			}
+//		}
+//		
+//		headConfig.addIterationAggregators(allAggregators);
 		
-		for (AggregatorWithName<?> agg : allAggregators) {
-			if (agg.getName().equals(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME)) {
-				throw new CompilerException("User defined aggregator used the same name as built-in workset " +
-						"termination check aggregator: " + WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME);
-			}
-		}
+//		String convAggName = aggs.getConvergenceCriterionAggregatorName();
+//		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
+//		
+//		if (convCriterion != null || convAggName != null) {
+//			throw new CompilerException("Error: Cannot use custom convergence criterion with workset iteration. Workset iterations have implicit convergence criterion where workset is empty.");
+//		}
 		
-		headConfig.addIterationAggregators(allAggregators);
-		
-		String convAggName = aggs.getConvergenceCriterionAggregatorName();
-		Class<? extends ConvergenceCriterion<?>> convCriterion = aggs.getConvergenceCriterion();
-		
-		if (convCriterion != null || convAggName != null) {
-			throw new CompilerException("Error: Cannot use custom convergence criterion with workset iteration. Workset iterations have implicit convergence criterion where workset is empty.");
-		}
-		
-		headConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
-		headConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, WorksetEmptyConvergenceCriterion.class);
+		//headConfig.addIterationAggregator(WorksetEmptyConvergenceCriterion.AGGREGATOR_NAME, LongSumAggregator.class);
+		headConfig.setConvergenceCriterion(WorksetEmptyConvergenceCriterion.ACCUMULATOR_NAME, WorksetEmptyConvergenceCriterion.class);
 	}
 
 	// -------------------------------------------------------------------------------------

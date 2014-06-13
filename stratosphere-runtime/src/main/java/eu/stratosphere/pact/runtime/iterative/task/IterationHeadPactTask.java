@@ -29,14 +29,14 @@ import eu.stratosphere.api.common.typeutils.TypeSerializerFactory;
 import eu.stratosphere.core.memory.DataInputView;
 import eu.stratosphere.core.memory.MemorySegment;
 import eu.stratosphere.nephele.io.AbstractRecordWriter;
-import eu.stratosphere.nephele.io.RecordWriter;
 import eu.stratosphere.nephele.io.channels.bytebuffered.EndOfSuperstepEvent;
+import eu.stratosphere.nephele.services.accumulators.AccumulatorEvent;
 import eu.stratosphere.pact.runtime.hash.CompactingHashTable;
 import eu.stratosphere.pact.runtime.io.InputViewIterator;
 import eu.stratosphere.pact.runtime.iterative.concurrent.BlockingBackChannel;
 import eu.stratosphere.pact.runtime.iterative.concurrent.BlockingBackChannelBroker;
 import eu.stratosphere.pact.runtime.iterative.concurrent.Broker;
-import eu.stratosphere.pact.runtime.iterative.concurrent.IterationAggregatorBroker;
+import eu.stratosphere.pact.runtime.iterative.concurrent.IterationAccumulatorBroker;
 import eu.stratosphere.pact.runtime.iterative.concurrent.SolutionSetBroker;
 import eu.stratosphere.pact.runtime.iterative.concurrent.SolutionSetUpdateBarrier;
 import eu.stratosphere.pact.runtime.iterative.concurrent.SolutionSetUpdateBarrierBroker;
@@ -46,8 +46,6 @@ import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.pact.runtime.iterative.io.SerializedUpdateBuffer;
 import eu.stratosphere.pact.runtime.task.RegularPactTask;
 import eu.stratosphere.pact.runtime.task.util.TaskConfig;
-import eu.stratosphere.types.IntValue;
-import eu.stratosphere.types.Value;
 import eu.stratosphere.util.Collector;
 import eu.stratosphere.util.MutableObjectIterator;
 
@@ -85,13 +83,11 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 
 	private TypeSerializerFactory<X> solutionTypeSerializer;
 
-	private RecordWriter<?> toSync;
-
 	private int initialSolutionSetInput; // undefined for bulk iterations
 
 	private int feedbackDataInput; // workset or bulk partial solution
 
-	private RuntimeAggregatorRegistry aggregatorRegistry;
+	private RuntimeAccumulatorRegistry accumulatorRegistry;
 	
 	private AtomicBoolean terminationRequested = new AtomicBoolean(false);
 	
@@ -244,9 +240,9 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				}
 			}
 
-			// instantiate all aggregators and register them at the iteration global registry
-			aggregatorRegistry = new RuntimeAggregatorRegistry(config.getIterationAggregators());
-			IterationAggregatorBroker.instance().handIn(brokerKey, aggregatorRegistry);
+			// register the global accumulator registry
+			accumulatorRegistry = new RuntimeAccumulatorRegistry();
+			IterationAccumulatorBroker.instance().handIn(brokerKey, accumulatorRegistry);
 
 			DataInputView superstepResult = null;
 
@@ -283,7 +279,7 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 				TaskConfig taskConfig = new TaskConfig(getTaskConfiguration());
 				synchronized (getEnvironment().getIterationReportProtocolProxy()) {
 					try {
-						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(getEnvironment().getJobID(), new IntValue(taskConfig.getIterationId()), new WorkerDoneEvent(workerIndex, aggregatorRegistry.getAllAggregators()));
+						getEnvironment().getIterationReportProtocolProxy().reportEndOfSuperstep(new WorkerDoneEvent(taskConfig.getIterationId(), workerIndex, new AccumulatorEvent(getEnvironment().getJobID(), getIterationAccumulators().getAllAccumulators(), true)));
 					} catch (IOException e) {
 						throw new RuntimeException("Communication with JobManager is broken. Could not send end of superstep.", e);
 					}
@@ -319,10 +315,7 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 					}
 					
 					incrementIterationCounter();
-
-					String[] globalAggregateNames = lastGlobalState.getAggregatorNames();
-					Value[] globalAggregates = lastGlobalState.getAggregates(userCodeClassLoader);
-					aggregatorRegistry.updateGlobalAggregatesAndReset(globalAggregateNames, globalAggregates);
+					accumulatorRegistry.updateGlobalAccumulatorsAndReset(lastGlobalState.getAccumulators());
 				}
 			}
 
@@ -341,7 +334,7 @@ public class IterationHeadPactTask<X, Y, S extends Function, OT> extends Abstrac
 			// - backchannel
 			// - aggregator registry
 			// - solution set index
-			IterationAggregatorBroker.instance().remove(brokerKey);
+			IterationAccumulatorBroker.instance().remove(brokerKey);
 			BlockingBackChannelBroker.instance().remove(brokerKey);
 			if (isWorksetIteration) {
 				SolutionSetBroker.instance().remove(brokerKey);

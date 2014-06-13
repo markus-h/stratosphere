@@ -23,13 +23,11 @@ import eu.stratosphere.api.common.accumulators.DoubleCounter;
 import eu.stratosphere.api.common.accumulators.Histogram;
 import eu.stratosphere.api.common.accumulators.IntCounter;
 import eu.stratosphere.api.common.accumulators.LongCounter;
-import eu.stratosphere.api.common.aggregators.Aggregator;
 import eu.stratosphere.api.common.cache.DistributedCache;
 import eu.stratosphere.api.common.functions.AbstractFunction;
 import eu.stratosphere.api.common.functions.IterationRuntimeContext;
 import eu.stratosphere.api.common.functions.RuntimeContext;
 import eu.stratosphere.configuration.Configuration;
-import eu.stratosphere.types.Value;
 
 
 public abstract class WrappingFunction<T extends AbstractFunction> extends AbstractFunction {
@@ -156,15 +154,10 @@ public abstract class WrappingFunction<T extends AbstractFunction> extends Abstr
 		public int getSuperstepNumber() {
 			return ((IterationRuntimeContext) context).getSuperstepNumber();
 		}
-
+		
 		@Override
-		public <T extends Aggregator<?>> T getIterationAggregator(String name) {
-			return ((IterationRuntimeContext) context).<T>getIterationAggregator(name);
-		}
-
-		@Override
-		public <T extends Value> T getPreviousIterationAggregate(String name) {
-			return ((IterationRuntimeContext) context).<T>getPreviousIterationAggregate(name);
+		public <T extends Accumulator<?, ?>> T getPreviousIterationAccumulator(String name) {
+			return ((IterationRuntimeContext) context).getPreviousIterationAccumulator(name);
 		}
 		
 	}

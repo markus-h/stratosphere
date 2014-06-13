@@ -13,12 +13,10 @@
 
 package eu.stratosphere.api.common.aggregators;
 
-import eu.stratosphere.types.Value;
-
 /**
  * Used to check for convergence.
  */
-public interface ConvergenceCriterion<T extends Value> {
+public interface ConvergenceCriterion<T> {
 
 	/**
 	 * Decide whether the iterative algorithm has converged

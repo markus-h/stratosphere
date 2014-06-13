@@ -48,8 +48,6 @@ import org.apache.log4j.PatternLayout;
 
 import com.google.common.base.Preconditions;
 
-import eu.stratosphere.api.common.aggregators.Aggregator;
-import eu.stratosphere.api.common.aggregators.AggregatorWithName;
 import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
 import eu.stratosphere.configuration.ConfigConstants;
 import eu.stratosphere.configuration.Configuration;
@@ -90,7 +88,6 @@ import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.nephele.jobmanager.accumulators.AccumulatorManager;
 import eu.stratosphere.nephele.jobmanager.archive.ArchiveListener;
 import eu.stratosphere.nephele.jobmanager.archive.MemoryArchivist;
-import eu.stratosphere.nephele.jobmanager.iterations.AggregatorManager;
 import eu.stratosphere.nephele.jobmanager.iterations.IterationManager;
 import eu.stratosphere.nephele.jobmanager.scheduler.AbstractScheduler;
 import eu.stratosphere.nephele.jobmanager.scheduler.SchedulingException;
@@ -123,7 +120,6 @@ import eu.stratosphere.nephele.util.SerializableArrayList;
 import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
 import eu.stratosphere.pact.runtime.task.util.TaskConfig;
-import eu.stratosphere.types.IntValue;
 import eu.stratosphere.types.Value;
 import eu.stratosphere.util.InstantiationUtil;
 import eu.stratosphere.util.StringUtils;
@@ -160,8 +156,6 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	private final MulticastManager multicastManager;
 	
 	private AccumulatorManager accumulatorManager;
-	
-	private AggregatorManager aggregatorManager;
 	
 	private ArrayList<IterationManager> iterationManager;
 
@@ -219,9 +213,6 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		// Otherwise they might be deleted before the client requested the
 		// accumulator results.
 		this.accumulatorManager = new AccumulatorManager(Math.min(1, archived_items));
-
-		// Create the aggregator manager, similiar to the accumulator manager
-		this.aggregatorManager = new AggregatorManager(Math.min(1, archived_items));
 		
 		// Create the list for storage of all running iterations
 		this.iterationManager = new ArrayList<IterationManager>();
@@ -561,29 +552,29 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 				if(IterationHeadPactTask.class.isAssignableFrom(vertex.getInvokableClass())) {
 					TaskConfig taskConfig = new TaskConfig(vertex.getConfiguration());
 					
-					// instantiate and add aggregators of iteration
-					for (AggregatorWithName<?> aggWithName : taskConfig.getIterationAggregators()) {
-						Aggregator<?> agg = InstantiationUtil.instantiate(aggWithName.getAggregator(), Aggregator.class);
-						this.aggregatorManager.addAggregator(job.getJobID(), aggWithName.getName(), agg);
-					}
+//					// instantiate and add aggregators of iteration
+//					for (AggregatorWithName<?> aggWithName : taskConfig.getIterationAggregators()) {
+//						Aggregator<?> agg = InstantiationUtil.instantiate(aggWithName.getAggregator(), Aggregator.class);
+//						this.aggregatorManager.addAggregator(job.getJobID(), aggWithName.getName(), agg);
+//					}
 					
 					// instantiate IterationManager
 					IterationManager manager = new IterationManager(job.getJobID(), 
 							taskConfig.getIterationId(),
 							vertex.getNumberOfSubtasks(), 
 							taskConfig.getNumberOfIterations(), 
-							aggregatorManager,
+							accumulatorManager,
 							eg.getGroupVertexByJobVertexID(vertex.getID()).getGroupMembers());
 					
 					// instantiate and add the aggregator convergence criterion
 					if (taskConfig.usesConvergenceCriterion()) {
 						
-						ConvergenceCriterion<Value> convergenceCriterion = null;
+						ConvergenceCriterion<Object> convergenceCriterion = null;
 						String convergenceAggregatorName;
 						
-						Class<? extends ConvergenceCriterion<Value>> convClass = taskConfig.getConvergenceCriterion();
+						Class<? extends ConvergenceCriterion<Object>> convClass = taskConfig.getConvergenceCriterion();
 						convergenceCriterion = InstantiationUtil.instantiate(convClass, ConvergenceCriterion.class);
-						convergenceAggregatorName = taskConfig.getConvergenceCriterionAggregatorName();
+						convergenceAggregatorName = taskConfig.getConvergenceCriterionAccumulatorName();
 						Preconditions.checkNotNull(convergenceAggregatorName);
 						
 						manager.setConvergenceCriterion(convergenceAggregatorName, convergenceCriterion);
@@ -1303,11 +1294,11 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	public AccumulatorEvent getAccumulatorResults(JobID jobID) throws IOException {
 		return new AccumulatorEvent(jobID, this.accumulatorManager.getJobAccumulators(jobID), false);
 	}
-
+	
 	@Override
-	public void reportEndOfSuperstep(JobID jobId, IntValue iterationId, WorkerDoneEvent workerDoneEvent)
+	public void reportEndOfSuperstep(WorkerDoneEvent workerDoneEvent)
 			throws IOException {
-		this.getIterationManager(jobId, iterationId.getValue()).receiveWorkerDoneEvent(workerDoneEvent);
+		this.getIterationManager(workerDoneEvent.getJobId(), workerDoneEvent.getIterationId()).receiveWorkerDoneEvent(workerDoneEvent);
 	}
 	
 	private IterationManager getIterationManager(JobID jobId, int iterationId) {
