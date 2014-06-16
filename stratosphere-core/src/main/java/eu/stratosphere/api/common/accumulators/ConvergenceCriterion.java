@@ -11,17 +11,15 @@
  * specific language governing permissions and limitations under the License.
  **********************************************************************************************************************/
 
-package eu.stratosphere.pact.runtime.iterative.concurrent;
+package eu.stratosphere.api.common.accumulators;
 
-import eu.stratosphere.pact.runtime.iterative.task.RuntimeAggregatorRegistry;
+/**
+ * Used to check for convergence.
+ */
+public interface ConvergenceCriterion<T> {
 
-public class IterationAggregatorBroker extends Broker<RuntimeAggregatorRegistry> {
-	
-	/** single instance */
-	private static final IterationAggregatorBroker INSTANCE = new IterationAggregatorBroker();
-
-	/** retrieve singleton instance */
-	public static IterationAggregatorBroker instance() {
-		return INSTANCE;
-	}
+	/**
+	 * Decide whether the iterative algorithm has converged
+	 */
+	boolean isConverged(int iteration, T value);
 }

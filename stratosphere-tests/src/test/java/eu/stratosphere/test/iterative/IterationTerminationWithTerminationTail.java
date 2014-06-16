@@ -103,7 +103,7 @@ public class IterationTerminationWithTerminationTail extends RecordAPITestBase {
 			while (it.hasNext()) {
 				sum += Integer.parseInt(it.next().getField(0, StringValue.class).getValue()) + 1;
 			}
-			
+			System.out.println("sum "+sum);
 			out.collect(new Record(new StringValue(Integer.toString(sum))));
 		}
 	}
@@ -115,9 +115,11 @@ public class IterationTerminationWithTerminationTail extends RecordAPITestBase {
 		public void map(Record record, Collector<Record> collector) {
 			
 			int currentSum = Integer.parseInt(record.getField(0, StringValue.class).getValue());
-
-			if(currentSum < 22)
+			System.out.println("csum "+currentSum);
+			if(currentSum < 22) {
+				System.out.println("COLLECTED");
 				collector.collect(record);
+			}
 		}
 	}
 

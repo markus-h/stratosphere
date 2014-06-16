@@ -13,17 +13,45 @@
 
 package eu.stratosphere.pact.runtime.iterative.event;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.Map;
 
-import eu.stratosphere.api.common.aggregators.Aggregator;
+import eu.stratosphere.api.common.accumulators.Accumulator;
+import eu.stratosphere.core.io.IOReadableWritable;
+import eu.stratosphere.nephele.jobgraph.JobID;
+import eu.stratosphere.nephele.services.accumulators.AccumulatorEvent;
 
-public class AllWorkersDoneEvent extends IterationEventWithAggregators {
+public class AllWorkersDoneEvent implements IOReadableWritable {
+	
+	private AccumulatorEvent accumulators;
 
 	public AllWorkersDoneEvent() {
 		super();
 	}
 	
-	public AllWorkersDoneEvent(Map<String, Aggregator<?>> aggregators) {
-		super(aggregators);
+	public AllWorkersDoneEvent(AccumulatorEvent accumulators) {
+		this.accumulators = accumulators;
 	}
+	
+	public Map<String, Accumulator<?, ?>> getAccumulators() {
+		return this.accumulators.getAccumulators();
+	}
+	
+	public JobID getJobId() {
+		return this.accumulators.getJobID();
+	}
+
+	@Override
+	public void write(DataOutput out) throws IOException {
+		this.accumulators.write(out);
+	}
+
+	@Override
+	public void read(DataInput in) throws IOException {
+		this.accumulators = new AccumulatorEvent();
+		accumulators.read(in);
+	}
+	
 }

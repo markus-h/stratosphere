@@ -175,9 +175,6 @@ public class KMeansIterativeNepheleITCase extends RecordAPITestBase {
 		headFinalOutConfig.addOutputShipStrategy(ShipStrategyType.FORWARD);
 		headConfig.setIterationHeadFinalOutputConfig(headFinalOutConfig);
 		
-		// the sync
-		headConfig.setIterationHeadIndexOfSyncOutput(2);
-		
 		// the driver 
 		headConfig.setDriver(NoOpDriver.class);
 		headConfig.setDriverStrategy(DriverStrategy.UNARY_NO_OP);

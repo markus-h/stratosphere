@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -47,6 +48,9 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 
+import com.google.common.base.Preconditions;
+
+import eu.stratosphere.api.common.accumulators.ConvergenceCriterion;
 import eu.stratosphere.configuration.ConfigConstants;
 import eu.stratosphere.configuration.Configuration;
 import eu.stratosphere.configuration.GlobalConfiguration;
@@ -86,6 +90,7 @@ import eu.stratosphere.nephele.jobgraph.JobID;
 import eu.stratosphere.nephele.jobmanager.accumulators.AccumulatorManager;
 import eu.stratosphere.nephele.jobmanager.archive.ArchiveListener;
 import eu.stratosphere.nephele.jobmanager.archive.MemoryArchivist;
+import eu.stratosphere.nephele.jobmanager.iterations.IterationManager;
 import eu.stratosphere.nephele.jobmanager.scheduler.AbstractScheduler;
 import eu.stratosphere.nephele.jobmanager.scheduler.SchedulingException;
 import eu.stratosphere.nephele.jobmanager.splitassigner.InputSplitManager;
@@ -98,6 +103,7 @@ import eu.stratosphere.nephele.protocols.AccumulatorProtocol;
 import eu.stratosphere.nephele.protocols.ChannelLookupProtocol;
 import eu.stratosphere.nephele.protocols.ExtendedManagementProtocol;
 import eu.stratosphere.nephele.protocols.InputSplitProviderProtocol;
+import eu.stratosphere.nephele.protocols.IterationReportProtocol;
 import eu.stratosphere.nephele.protocols.JobManagerProtocol;
 import eu.stratosphere.nephele.services.accumulators.AccumulatorEvent;
 import eu.stratosphere.nephele.taskmanager.AbstractTaskResult;
@@ -110,6 +116,10 @@ import eu.stratosphere.nephele.taskmanager.ExecutorThreadFactory;
 import eu.stratosphere.nephele.topology.NetworkTopology;
 import eu.stratosphere.nephele.types.IntegerRecord;
 import eu.stratosphere.nephele.util.SerializableArrayList;
+import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
+import eu.stratosphere.pact.runtime.iterative.task.IterationHeadPactTask;
+import eu.stratosphere.pact.runtime.task.util.TaskConfig;
+import eu.stratosphere.util.InstantiationUtil;
 import eu.stratosphere.util.StringUtils;
 
 /**
@@ -121,7 +131,7 @@ import eu.stratosphere.util.StringUtils;
  * 
  */
 public class JobManager implements DeploymentManager, ExtendedManagementProtocol, InputSplitProviderProtocol,
-		JobManagerProtocol, ChannelLookupProtocol, JobStatusListener, AccumulatorProtocol
+		JobManagerProtocol, ChannelLookupProtocol, JobStatusListener, AccumulatorProtocol, IterationReportProtocol
 {
 	public static enum ExecutionMode { LOCAL, CLUSTER }
 	
@@ -142,6 +152,8 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	private final AbstractScheduler scheduler;
 	
 	private AccumulatorManager accumulatorManager;
+	
+	private ArrayList<IterationManager> iterationManager;
 
 	private InstanceManager instanceManager;
 
@@ -197,7 +209,10 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		// Otherwise they might be deleted before the client requested the
 		// accumulator results.
 		this.accumulatorManager = new AccumulatorManager(Math.min(1, archived_items));
-
+		
+		// Create the list for storage of all running iterations
+		this.iterationManager = new ArrayList<IterationManager>();
+		
 		// Load the input split manager
 		this.inputSplitManager = new InputSplitManager();
 
@@ -530,6 +545,45 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	
 			// Register for updates on the job status
 			eg.registerJobStatusListener(this);
+			
+			// Set up iteration handling
+			for(AbstractJobVertex vertex : job.getAllJobVertices()) {
+				
+				// find one iteration head
+				if(IterationHeadPactTask.class.isAssignableFrom(vertex.getInvokableClass())) {
+					TaskConfig taskConfig = new TaskConfig(vertex.getConfiguration());
+					
+//					// instantiate and add aggregators of iteration
+//					for (AggregatorWithName<?> aggWithName : taskConfig.getIterationAggregators()) {
+//						Aggregator<?> agg = InstantiationUtil.instantiate(aggWithName.getAggregator(), Aggregator.class);
+//						this.aggregatorManager.addAggregator(job.getJobID(), aggWithName.getName(), agg);
+//					}
+					
+					// instantiate IterationManager
+					IterationManager manager = new IterationManager(job.getJobID(), 
+							taskConfig.getIterationId(),
+							vertex.getNumberOfSubtasks(), 
+							taskConfig.getNumberOfIterations(), 
+							accumulatorManager,
+							eg.getGroupVertexByJobVertexID(vertex.getID()).getGroupMembers());
+					
+					// instantiate and add the aggregator convergence criterion
+					if (taskConfig.usesConvergenceCriterion()) {
+						
+						ConvergenceCriterion<Object> convergenceCriterion = null;
+						String convergenceAggregatorName;
+						
+						Class<? extends ConvergenceCriterion<Object>> convClass = taskConfig.getConvergenceCriterion();
+						convergenceCriterion = InstantiationUtil.instantiate(convClass, ConvergenceCriterion.class);
+						convergenceAggregatorName = taskConfig.getConvergenceCriterionAccumulatorName();
+						Preconditions.checkNotNull(convergenceAggregatorName);
+						
+						manager.setConvergenceCriterion(convergenceAggregatorName, convergenceCriterion);
+					}
+					
+					this.iterationManager.add(manager);
+				}
+			}
 	
 			// Schedule job
 			if (LOG.isInfoEnabled()) {
@@ -593,6 +647,13 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		} catch (IOException ioe) {
 			if (LOG.isWarnEnabled()) {
 				LOG.warn(ioe);
+			}
+		}
+		
+		// Remove IterationManager
+		for(int i=0; i < this.iterationManager.size(); i++) {
+			if(this.iterationManager.get(i).getJobId().equals(executionGraph.getJobID())) {
+					this.iterationManager.remove(i);
 			}
 		}
 	}
@@ -1210,5 +1271,20 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	@Override
 	public AccumulatorEvent getAccumulatorResults(JobID jobID) throws IOException {
 		return new AccumulatorEvent(jobID, this.accumulatorManager.getJobAccumulators(jobID), false);
+	}
+	
+	@Override
+	public void reportEndOfSuperstep(WorkerDoneEvent workerDoneEvent)
+			throws IOException {
+		this.getIterationManager(workerDoneEvent.getJobId(), workerDoneEvent.getIterationId()).receiveWorkerDoneEvent(workerDoneEvent);
+	}
+	
+	private IterationManager getIterationManager(JobID jobId, int iterationId) {
+		for(IterationManager manager : this.iterationManager) {
+			if(manager.getJobId().equals(jobId) && manager.getIterationId() == iterationId) {
+				return manager;
+			}
+		}
+		return null;
 	}
 }

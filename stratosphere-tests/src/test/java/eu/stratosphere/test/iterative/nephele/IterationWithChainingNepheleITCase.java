@@ -159,9 +159,6 @@ public class IterationWithChainingNepheleITCase extends RecordAPITestBase {
 			headFinalOutConfig.addOutputShipStrategy(ShipStrategyType.FORWARD);
 			headConfig.setIterationHeadFinalOutputConfig(headFinalOutConfig);
 
-			// the sync
-			headConfig.setIterationHeadIndexOfSyncOutput(2);
-
 			// driver
 			headConfig.setDriver(CollectorMapDriver.class);
 			headConfig.setDriverStrategy(DriverStrategy.COLLECTOR_MAP);

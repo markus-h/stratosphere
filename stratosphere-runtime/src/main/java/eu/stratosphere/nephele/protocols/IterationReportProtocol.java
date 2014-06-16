@@ -10,38 +10,26 @@
  * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations under the License.
  **********************************************************************************************************************/
-package eu.stratosphere.api.common.aggregators;
 
-import eu.stratosphere.types.LongValue;
+package eu.stratosphere.nephele.protocols;
+
+import java.io.IOException;
+
+import eu.stratosphere.core.protocols.VersionedProtocol;
+import eu.stratosphere.pact.runtime.iterative.event.WorkerDoneEvent;
 
 /**
- * An {@link Aggregator} that sums up long values.
+ * The iteration report protocol is implemented by the job manager. Task managers can
+ * use it to report the end of a superstep of an iteration to the job manager.
  */
-public class LongSumAggregator implements Aggregator<LongValue> {
+public interface IterationReportProtocol extends VersionedProtocol {
 
-	private long sum;	// the sum
-	
-	@Override
-	public LongValue getAggregate() {
-		return new LongValue(sum);
-	}
-
-	@Override
-	public void aggregate(LongValue element) {
-		sum += element.getValue();
-	}
-	
 	/**
-	 * Adds the given value to the current aggregate.
-	 * 
-	 * @param value The value to add to the aggregate.
+	 * Report end of superstep (including aggregators) that were collected in a task. 
+	 * Called by Task Manager, after the user code was executed but before the task status
+	 * update is reported.
 	 */
-	public void aggregate(long value) {
-		sum += value;
-	}
-
-	@Override
-	public void reset() {
-		sum = 0;
-	}
+	void reportEndOfSuperstep(WorkerDoneEvent workerDoneEvent)
+			throws IOException;
+	
 }

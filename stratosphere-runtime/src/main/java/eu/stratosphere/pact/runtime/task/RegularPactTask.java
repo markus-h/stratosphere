@@ -39,6 +39,7 @@ import eu.stratosphere.nephele.services.memorymanager.MemoryManager;
 import eu.stratosphere.nephele.template.AbstractInputTask;
 import eu.stratosphere.nephele.template.AbstractInvokable;
 import eu.stratosphere.nephele.template.AbstractTask;
+import eu.stratosphere.pact.runtime.iterative.task.AbstractIterativePactTask;
 import eu.stratosphere.pact.runtime.plugable.DeserializationDelegate;
 import eu.stratosphere.pact.runtime.plugable.SerializationDelegate;
 import eu.stratosphere.pact.runtime.resettable.SpillingResettableMutableObjectIterator;
@@ -519,7 +520,7 @@ public class RegularPactTask<S extends Function, OT> extends AbstractTask implem
 			// JobManager. close() has been called earlier for all involved UDFs
 			// (using this.stub.close() and closeChainedTasks()), so UDFs can no longer
 			// modify accumulators.ll;
-			if (this.stub != null) {
+			if (this.stub != null && !(this instanceof AbstractIterativePactTask<?, ?>)) {
 				// collect the counters from the stub
 				Map<String, Accumulator<?,?>> accumulators = this.stub.getRuntimeContext().getAllAccumulators();
 				RegularPactTask.reportAndClearAccumulators(getEnvironment(), accumulators, this.chainedTasks);
